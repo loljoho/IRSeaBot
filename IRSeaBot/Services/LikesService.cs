@@ -33,20 +33,26 @@ namespace IRSeaBot.Services
                 {
                     if (!String.IsNullOrWhiteSpace(p))
                     {
-                        p = p.Trim();
-                        string[] split = p.Split("|");
-                        Like like = new Like
-                        {
-                            Phrase = split[0],
-                            Score = Convert.ToInt32(split[1]),
-                        };
-                        likesDict.TryAdd(split[0], like);
+                        Like like = parseLike(p);
+                        likesDict.TryAdd(like.Phrase, like);
                     }
                 });
             }
             bool found = likesDict.TryGetValue(phrase, out Like like);
             if (found) return like;
             else return null;
+        }
+
+        private Like parseLike(string p)
+        {
+            p = p.Trim();
+            string[] split = p.Split("|");
+            Like like = new Like
+            {
+                Phrase = split[0],
+                Score = Convert.ToInt32(split[1]),
+            };
+            return like;
         }
 
         private string GetPath()
@@ -89,21 +95,15 @@ namespace IRSeaBot.Services
                 {
                     if (!String.IsNullOrWhiteSpace(p))
                     {
-                        p = p.Trim();
-                        string[] split = p.Split("|");
-                        Like like = new Like
-                        {
-                            Phrase = split[0],
-                            Score = Convert.ToInt32(split[1]),
-                        };
-                        likesDict.TryAdd(split[0], like);
+                        Like like = parseLike(p);
+                        likesDict.TryAdd(like.Phrase, like);
                     }
-
                 });
             }
 
             if(!likesDict.Any(x => x.Key.Equals(phrase)))
             {
+
                 Like newLike = new Like
                 {
                     Phrase = phrase,

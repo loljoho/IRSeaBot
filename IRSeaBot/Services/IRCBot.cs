@@ -1,5 +1,6 @@
 ﻿using IRSeaBot.Models;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
@@ -25,11 +26,16 @@ namespace IRSeaBot.Services
         private readonly WeatherService _ws;
         private readonly YouTubeService _yt;
         private readonly LikesService _ls;
-        public IRCBot(WeatherService ws, YouTubeService yt, LikesService ls)
+        private readonly SeenService _ss;
+        private DateTime lastSeenWrite = DateTime.Now;
+        private ConcurrentDictionary<string, SeenUser> seenUsers = new ConcurrentDictionary<string, SeenUser>();
+
+        public IRCBot(WeatherService ws, YouTubeService yt, LikesService ls, SeenService ss)
         {
             _ws = ws;
             _yt = yt;
             _ls = ls;
+            _ss = ss;
         }
 
         private string GetRestOfMessage(string[] msg)
@@ -76,8 +82,41 @@ namespace IRSeaBot.Services
         {
             if (like != null)
             {
-                writer.WriteLine("PRIVMSG " + replyTo + " " + like.Phrase + " has " + like.Score + " points.");
+                writer.WriteLine("PRIVMSG " + replyTo + " " + like.Phrase + " has " + like.Score + " likes.");
                 writer.Flush();
+            }
+        }
+
+        private void SendUser(StreamWriter writer, SeenUser user, string replyTo)
+        {
+            if(user != null)
+            {
+                writer.WriteLine("PRIVMSG " + replyTo + " " + user.Username + " was last seen at " + user.Timestamp.ToString() + " saying " + user.Message);
+                writer.Flush();
+            }
+        }
+
+        private async Task LogUser(ChatReply reply)
+        {
+            string username = reply.User.Substring(1).Split("!")[0];
+            SeenUser seenUser = new SeenUser
+            {
+                Username = username,
+                Message = reply.Message,
+                Timestamp = DateTime.Now
+            };
+
+            seenUsers.AddOrUpdate(seenUser.Username, seenUser, (name, user) =>
+            {
+                user = seenUser;
+                return user;
+            });
+
+            if(lastSeenWrite.AddMinutes(2) < DateTime.Now)
+            {
+                await _ss.WriteSeens(seenUsers);
+                lastSeenWrite = DateTime.Now;
+                seenUsers.Clear();
             }
         }
 
@@ -107,17 +146,16 @@ namespace IRSeaBot.Services
                                 Console.WriteLine("<- " + inputLine);
                                 ChatReply reply = ParseReply(inputLine);
                                 if (reply == null) continue;
-                                if (reply.User == "PING") //splitInput[0]
+                                if (reply.User == "PING") 
                                 {
                                     Console.WriteLine("PING ->");
-                                    string PongReply = reply.Command; // splitInput[1];
+                                    string PongReply = reply.Command;
                                     Console.WriteLine("->PONG " + PongReply);
                                     writer.WriteLine("PONG " + PongReply);
                                     writer.Flush();
-                                    //continue;
                                 }
 
-                                switch (reply.Command) //splitInput[1]
+                                switch (reply.Command)
                                 {
                                     case "001":
                                         writer.WriteLine("JOIN " + _channel);
@@ -129,6 +167,10 @@ namespace IRSeaBot.Services
 
                                 if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
                                 {
+                                    //if (reply.Param.Equals(Settings.channel))
+                                    //{
+                                    //    await LogUser(reply);
+                                    //}         
                                     string replyTo = "";
                                     if (reply.Param == "LookOfRobot")
                                     {
@@ -156,7 +198,7 @@ namespace IRSeaBot.Services
                                     }
                                     else
                                     {
-                                        switch (msg[0]) //splitInput[3]
+                                        switch (msg[0]) 
                                         {
                                             case ":.test":
                                                 writer.WriteLine("PRIVMSG " + replyTo + " :asbestos in obstetrics");
@@ -189,12 +231,15 @@ namespace IRSeaBot.Services
                                                 Like like = await _ls.GetLikes(phrase.Trim());
                                                 SendLike(writer, like, replyTo);
                                                 break;
+                                            case ":.seen":
+                                                string seenMsg = GetRestOfMessage(msg);
+                                                SeenUser user = await _ss.GetSeen(seenMsg.Trim());
+                                                SendUser(writer, user, replyTo);
+                                                break;
                                             default:
                                                 break;
                                         }
-                                    }
-
- 
+                                    } 
                                 }
                             }
                         }

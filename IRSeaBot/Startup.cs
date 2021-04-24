@@ -31,6 +31,7 @@ namespace IRSeaBot
             services.AddScoped<WeatherService>();
             services.AddScoped<YouTubeService>();
             services.AddScoped<LikesService>();
+            services.AddScoped<SeenService>();
 
         }
 
