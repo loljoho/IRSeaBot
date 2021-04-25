@@ -1,4 +1,5 @@
 ﻿using IRSeaBot.Models;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,6 +11,13 @@ namespace IRSeaBot.Services
 {
     public class SeenService
     {
+        private readonly ILogger<SeenService> _logger;
+
+        public SeenService(ILogger<SeenService> logger)
+        {
+            _logger = logger;
+        }
+
         public async Task<SeenUser> GetSeen(string username)
         {
             if(username.Contains(" "))
@@ -28,7 +36,7 @@ namespace IRSeaBot.Services
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.Message);
+                    _logger.LogError(e.Message);
                 }
             }
             if (!String.IsNullOrWhiteSpace(seenString))
@@ -107,14 +115,18 @@ namespace IRSeaBot.Services
                 });
             }
 
-            Parallel.ForEach(users, (kv) =>
+            foreach(KeyValuePair<string, SeenUser> kv in users)
             {
-                seenDict.AddOrUpdate(kv.Key, kv.Value, (name, user) =>
+                if(!seenDict.ContainsKey(kv.Key))
                 {
-                    user = kv.Value;
-                    return user;
-                });
-            });
+                    seenDict.TryAdd(kv.Key, kv.Value);
+                }
+                else
+                {
+                    seenDict[kv.Key] = kv.Value;
+                }
+            }
+
 
             var tempFile = Path.GetTempFileName();
             using (StreamWriter output = new StreamWriter(tempFile))

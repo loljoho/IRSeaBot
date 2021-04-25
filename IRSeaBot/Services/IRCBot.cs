@@ -1,4 +1,5 @@
 ﻿using IRSeaBot.Models;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -28,14 +29,17 @@ namespace IRSeaBot.Services
         private readonly LikesService _ls;
         private readonly SeenService _ss;
         private DateTime lastSeenWrite = DateTime.Now;
-        private ConcurrentDictionary<string, SeenUser> seenUsers = new ConcurrentDictionary<string, SeenUser>();
+        //private ConcurrentDictionary<string, SeenUser> seenUsers = new ConcurrentDictionary<string, SeenUser>();
+        private Dictionary<string, SeenUser> seenUsers = new Dictionary<string, SeenUser>();
+        private readonly ILogger<IRCBot> _logger;
 
-        public IRCBot(WeatherService ws, YouTubeService yt, LikesService ls, SeenService ss)
+        public IRCBot(WeatherService ws, YouTubeService yt, LikesService ls, SeenService ss, ILogger<IRCBot> logger)
         {
             _ws = ws;
             _yt = yt;
             _ls = ls;
             _ss = ss;
+            _logger = logger;
         }
 
         private string GetRestOfMessage(string[] msg)
@@ -73,7 +77,7 @@ namespace IRSeaBot.Services
                 return reply;
             }catch(Exception e)
             {
-                Console.WriteLine(e.Message);
+                _logger.LogError(e.Message);
                 return null;
             }
         }
@@ -113,12 +117,7 @@ namespace IRSeaBot.Services
                     Message = reply.Message,
                     Timestamp = DateTime.Now
                 };
-
-                seenUsers.AddOrUpdate(seenUser.Username, seenUser, (name, user) =>
-                {
-                    user = seenUser;
-                    return user;
-                });
+                seenUsers[seenUser.Username] = seenUser;
 
                 if (lastSeenWrite.AddMinutes(2) < DateTime.Now)
                 {
@@ -128,7 +127,7 @@ namespace IRSeaBot.Services
                 }
             }catch(Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                _logger.LogError(ex.Message);
             }
         }
 
@@ -140,29 +139,30 @@ namespace IRSeaBot.Services
             {
                 try
                 {
-                    using (var irc = new TcpClient(_server, _port))
-                    using (var stream = irc.GetStream())
-                    using (var reader = new StreamReader(stream))
-                    using (var writer = new StreamWriter(stream))
-                    {
-                        writer.WriteLine("NICK " + _nick);
-                        writer.Flush();
-                        writer.WriteLine(_user);
-                        writer.Flush();
+                    using var irc = new TcpClient(_server, _port);
+                    using var stream = irc.GetStream();
+                    using var reader = new StreamReader(stream);
+                    using var writer = new StreamWriter(stream);
+                    writer.WriteLine("NICK " + _nick);
+                    writer.Flush();
+                    writer.WriteLine(_user);
+                    writer.Flush();
 
-                        while (true)
+                    while (true)
+                    {
+                        string inputLine;
+                        while ((inputLine = reader.ReadLine()) != null)
                         {
-                            string inputLine;
-                            while ((inputLine = reader.ReadLine()) != null)
+                            try
                             {
-                                Console.WriteLine("<- " + inputLine);
+                                _logger.LogInformation("<- " + inputLine);
                                 ChatReply reply = ParseReply(inputLine);
                                 if (reply == null) continue;
-                                if (reply.User == "PING") 
+                                if (reply.User == "PING")
                                 {
-                                    Console.WriteLine("PING ->");
+                                    _logger.LogInformation("PING ->");
                                     string PongReply = reply.Command;
-                                    Console.WriteLine("->PONG " + PongReply);
+                                    _logger.LogInformation("->PONG " + PongReply);
                                     writer.WriteLine("PONG " + PongReply);
                                     writer.Flush();
                                 }
@@ -210,7 +210,7 @@ namespace IRSeaBot.Services
                                     }
                                     else
                                     {
-                                        switch (msg[0]) 
+                                        switch (msg[0])
                                         {
                                             case ":.test":
                                                 writer.WriteLine("PRIVMSG " + replyTo + " :asbestos in obstetrics");
@@ -251,8 +251,12 @@ namespace IRSeaBot.Services
                                             default:
                                                 break;
                                         }
-                                    } 
+                                    }
                                 }
+                            }
+                            catch(Exception ex)
+                            {
+                                _logger.LogError(ex.Message);
                             }
                         }
                     }
@@ -260,7 +264,7 @@ namespace IRSeaBot.Services
                 catch (Exception e)
                 {
                     // shows the exception, sleeps for a little while and then tries to establish a new connection to the IRC server
-                    Console.WriteLine(e.ToString());
+                    _logger.LogInformation(e.ToString());
                     await Task.Delay(5000);
                     retryCount++;
                     if (retryCount > _maxRetries) retry = false;
