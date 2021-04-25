@@ -111,10 +111,11 @@ namespace IRSeaBot.Services
             try
             {
                 string username = reply.User.Substring(1).Split("!")[0];
+                if (username == Settings.nick) return; //don't log the bot
                 SeenUser seenUser = new SeenUser
                 {
                     Username = username,
-                    Message = reply.Message,
+                    Message = reply.Message.Replace('|', ' ').Replace('~', ' '), //remove delimiters
                     Timestamp = DateTime.Now
                 };
                 seenUsers[seenUser.Username] = seenUser;
@@ -179,21 +180,13 @@ namespace IRSeaBot.Services
 
                                 if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
                                 {
-                                    if (reply.Param.Equals(Settings.channel))
-                                    {
-                                        await LogUser(reply);
-                                    }
-                                    string replyTo = "";
-                                    if (reply.Param == "LookOfRobot")
-                                    {
-                                        replyTo = reply.User.Substring(1).Split("!")[0];
-                                    }
-                                    else
-                                    {
-                                        replyTo = reply.Param;
-                                    }
+                                    if (reply.Param.Equals(Settings.channel)) await LogUser(reply);
 
+                                    string replyTo = "";
+                                    if (reply.Param == "LookOfRobot") replyTo = reply.User.Substring(1).Split("!")[0];
+                                    else replyTo = reply.Param;
                                     string[] msg = reply.Message.Split(" ");
+
                                     if (msg[0].EndsWith("++"))
                                     {
                                         string phrase = msg[0].Split(":")[1];
