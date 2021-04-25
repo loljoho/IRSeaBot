@@ -94,29 +94,41 @@ namespace IRSeaBot.Services
                 writer.WriteLine("PRIVMSG " + replyTo + " " + user.Username + " was last seen at " + user.Timestamp.ToString() + " saying " + user.Message);
                 writer.Flush();
             }
+            else
+            {
+                writer.WriteLine("PRIVMSG " + replyTo + " who?");
+                writer.Flush();
+            }
         }
 
         private async Task LogUser(ChatReply reply)
         {
-            string username = reply.User.Substring(1).Split("!")[0];
-            SeenUser seenUser = new SeenUser
+            if (reply.Message.Contains(".seen")) return;
+            try
             {
-                Username = username,
-                Message = reply.Message,
-                Timestamp = DateTime.Now
-            };
+                string username = reply.User.Substring(1).Split("!")[0];
+                SeenUser seenUser = new SeenUser
+                {
+                    Username = username,
+                    Message = reply.Message,
+                    Timestamp = DateTime.Now
+                };
 
-            seenUsers.AddOrUpdate(seenUser.Username, seenUser, (name, user) =>
-            {
-                user = seenUser;
-                return user;
-            });
+                seenUsers.AddOrUpdate(seenUser.Username, seenUser, (name, user) =>
+                {
+                    user = seenUser;
+                    return user;
+                });
 
-            if(lastSeenWrite.AddMinutes(2) < DateTime.Now)
+                if (lastSeenWrite.AddMinutes(2) < DateTime.Now)
+                {
+                    await _ss.WriteSeens(seenUsers);
+                    lastSeenWrite = DateTime.Now;
+                    seenUsers.Clear();
+                }
+            }catch(Exception ex)
             {
-                await _ss.WriteSeens(seenUsers);
-                lastSeenWrite = DateTime.Now;
-                seenUsers.Clear();
+                Console.WriteLine(ex.Message);
             }
         }
 
@@ -167,10 +179,10 @@ namespace IRSeaBot.Services
 
                                 if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
                                 {
-                                    //if (reply.Param.Equals(Settings.channel))
-                                    //{
-                                    //    await LogUser(reply);
-                                    //}         
+                                    if (reply.Param.Equals(Settings.channel))
+                                    {
+                                        await LogUser(reply);
+                                    }
                                     string replyTo = "";
                                     if (reply.Param == "LookOfRobot")
                                     {
@@ -233,7 +245,7 @@ namespace IRSeaBot.Services
                                                 break;
                                             case ":.seen":
                                                 string seenMsg = GetRestOfMessage(msg);
-                                                SeenUser user = await _ss.GetSeen(seenMsg.Trim());
+                                                SeenUser user = await _ss.GetSeen(seenMsg);
                                                 SendUser(writer, user, replyTo);
                                                 break;
                                             default:

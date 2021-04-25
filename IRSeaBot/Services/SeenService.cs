@@ -12,6 +12,11 @@ namespace IRSeaBot.Services
     {
         public async Task<SeenUser> GetSeen(string username)
         {
+            if(username.Contains(" "))
+            {
+                username = username.Split(" ")[0].Trim();
+            }
+            if (username.Equals(Settings.nick)) return null;
             string pathString = GetPath();
             ConcurrentDictionary<string, SeenUser> seenDict = new ConcurrentDictionary<string, SeenUser>();
             string seenString = "";
