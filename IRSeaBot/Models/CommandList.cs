@@ -40,7 +40,22 @@ namespace IRSeaBot.Models
                 Usage = ".likes <search term>",
                 Description = "Gets a phrases likes value.",
             };
-            Commands.Add(yt); Commands.Add(we); Commands.Add(quayle); Commands.Add(likes);
+            var seen = new Command
+            {
+                Title = "Seen",
+                Cmd = ".seen",
+                Usage = ".seen <user>",
+                Description = "Gets the last time I have seen a user.",
+            };
+            var eball = new Command
+            {
+                Title = "8 Ball",
+                Cmd = ".8ball",
+                Usage = ".8ball <yes or no question>",
+                Description = "Predicts the future.",
+            };
+            Commands.Add(yt); Commands.Add(we); Commands.Add(quayle); Commands.Add(likes); Commands.Add(seen);
+            Commands.Add(eball);
         }
     }
 

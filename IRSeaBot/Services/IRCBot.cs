@@ -136,6 +136,7 @@ namespace IRSeaBot.Services
         {
             bool retry = true;
             int retryCount = 0;
+            await Task.Delay(25, cancellationToken);
             while (!cancellationToken.IsCancellationRequested && retry)
             {
                 try
@@ -240,6 +241,20 @@ namespace IRSeaBot.Services
                                                 string seenMsg = GetRestOfMessage(msg);
                                                 SeenUser user = await _ss.GetSeen(seenMsg);
                                                 SendUser(writer, user, replyTo);
+                                                break;
+                                            case ":.8ball":
+                                                string eballQ = GetRestOfMessage(msg).Trim();
+                                                string eballReply;
+                                                if (!eballQ.EndsWith("?"))
+                                                {
+                                                    eballReply = "I can only answer a question";
+                                                }
+                                                else
+                                                {
+                                                    eballReply = EightBallFactory.GetRandomReply();
+                                                }                                           
+                                                writer.WriteLine("PRIVMSG " + replyTo + " " + eballReply);
+                                                writer.Flush();
                                                 break;
                                             default:
                                                 break;
