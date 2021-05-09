@@ -211,7 +211,17 @@ namespace IRSeaBot.Services
                                                 writer.Flush();
                                                 break;
                                             case ":.help":
-                                                string help = CommandFactory.GetCommands();
+                                                string help;
+                                                string helpMsg = GetRestOfMessage(msg);
+                                                if (String.IsNullOrWhiteSpace(helpMsg))
+                                                {
+                                                    help = CommandFactory.GetCommands();
+                                                }
+                                                else
+                                                {
+                                                    help = CommandFactory.GetCommand(helpMsg);
+                                                }
+                                                
                                                 writer.WriteLine("PRIVMSG " + replyTo + " " + help);
                                                 writer.Flush();
                                                 break;
