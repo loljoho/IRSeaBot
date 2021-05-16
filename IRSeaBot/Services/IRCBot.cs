@@ -9,6 +9,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+
+
 namespace IRSeaBot.Services
 {
     public class IRCBot
@@ -29,8 +31,10 @@ namespace IRSeaBot.Services
         private readonly LikesService _ls;
         private readonly SeenService _ss;
         private DateTime lastSeenWrite = DateTime.Now;
-        //private ConcurrentDictionary<string, SeenUser> seenUsers = new ConcurrentDictionary<string, SeenUser>();
-        private Dictionary<string, SeenUser> seenUsers = new Dictionary<string, SeenUser>();
+        private Dictionary<string, SeenUser> seenUsers;
+        private System.Timers.Timer seenWriteTimer;
+        private readonly object seenDictLock = new();
+        private SemaphoreSlim seenWriteSemaphore;
         private readonly ILogger<IRCBot> _logger;
 
         public IRCBot(WeatherService ws, YouTubeService yt, LikesService ls, SeenService ss, ILogger<IRCBot> logger)
@@ -39,6 +43,11 @@ namespace IRSeaBot.Services
             _yt = yt;
             _ls = ls;
             _ss = ss;
+            seenWriteSemaphore = new SemaphoreSlim(1, 1);
+            seenUsers = new Dictionary<string, SeenUser>();
+            seenWriteTimer = new System.Timers.Timer(30000);
+            seenWriteTimer.AutoReset = true;
+            seenWriteTimer.Elapsed += async (sender, e) => await WriteSeens();
             _logger = logger;
         }
 
@@ -51,6 +60,17 @@ namespace IRSeaBot.Services
             }
             return sb.ToString();
         }
+
+        private string GetFirstWordOfMessage(string[] msg)
+        {
+            string word = String.Empty;
+            if(msg.Length >= 1)
+            {
+                word = msg[1];
+            }
+            return word;
+        }
+
         private ChatReply ParseReply(string inputLine)
         {
             try
@@ -105,7 +125,7 @@ namespace IRSeaBot.Services
             }
         }
 
-        private async Task LogUser(ChatReply reply)
+        private void LogUser(ChatReply reply)
         {
             if (reply.Message.Contains(".seen")) return;
             try
@@ -118,13 +138,9 @@ namespace IRSeaBot.Services
                     Message = reply.Message.Replace('|', ' ').Replace('~', ' '), //remove delimiters
                     Timestamp = DateTime.Now
                 };
-                seenUsers[seenUser.Username] = seenUser;
-
-                if (lastSeenWrite.AddMinutes(2) < DateTime.Now)
+                lock (seenDictLock)
                 {
-                    await _ss.WriteSeens(seenUsers);
-                    lastSeenWrite = DateTime.Now;
-                    seenUsers.Clear();
+                    seenUsers[seenUser.Username] = seenUser;
                 }
             }catch(Exception ex)
             {
@@ -132,10 +148,36 @@ namespace IRSeaBot.Services
             }
         }
 
+        private async Task WriteSeens()
+        {
+            if(seenUsers.Count > 0)
+            {
+                Dictionary<string, SeenUser> writes;
+                lock (seenDictLock)
+                {
+                    writes = new Dictionary<string, SeenUser>(seenUsers);
+                    seenUsers.Clear();
+                }
+                await seenWriteSemaphore.WaitAsync();
+                try
+                {
+                    await _ss.WriteSeens(writes);
+                }catch(Exception ex)
+                {
+                    _logger.LogError(ex.Message);
+                }
+                finally
+                {
+                    seenWriteSemaphore.Release();
+                }                         
+            }      
+        }
+
         public async Task Chat(CancellationToken cancellationToken)
         {
             bool retry = true;
             int retryCount = 0;
+            seenWriteTimer.Start();
             await Task.Delay(25, cancellationToken);
             while (!cancellationToken.IsCancellationRequested && retry)
             {
@@ -181,7 +223,7 @@ namespace IRSeaBot.Services
 
                                 if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
                                 {
-                                    if (reply.Param.Equals(Settings.channel)) await LogUser(reply);
+                                    if (reply.Param.Equals(Settings.channel)) LogUser(reply);
 
                                     string replyTo = "";
                                     if (reply.Param == "LookOfRobot") replyTo = reply.User.Substring(1).Split("!")[0];
@@ -230,6 +272,25 @@ namespace IRSeaBot.Services
                                                 writer.WriteLine("PRIVMSG " + replyTo + " " + quote);
                                                 writer.Flush();
                                                 break;
+                                            case ":.fight":
+                                                string fightMsg = GetFirstWordOfMessage(msg);
+                                                if(!String.IsNullOrWhiteSpace(fightMsg))
+                                                {
+                                                    string fight = FightFactory.GetFight(fightMsg);
+                                                    writer.WriteLine("PRIVMSG " + replyTo + " " + fight);
+                                                    writer.Flush();
+                                                }
+                                                break;
+                                            case ":.hi5":
+                                                string hi5Msg = GetFirstWordOfMessage(msg);
+                                                if (!String.IsNullOrWhiteSpace(hi5Msg))
+                                                {
+                                                    string sender = reply.User.Substring(1).Split("!")[0];
+                                                    string hi5 = HighFiveFactory.GetHighFive(sender, hi5Msg);
+                                                    writer.WriteLine("PRIVMSG " + replyTo + " " + hi5);
+                                                    writer.Flush();
+                                                }
+                                                break;
                                             case ":.we":
                                                 string msg2 = GetRestOfMessage(msg);
                                                 string r = await _ws.GetWeather(msg2);
@@ -249,8 +310,20 @@ namespace IRSeaBot.Services
                                                 break;
                                             case ":.seen":
                                                 string seenMsg = GetRestOfMessage(msg);
-                                                SeenUser user = await _ss.GetSeen(seenMsg);
-                                                SendUser(writer, user, replyTo);
+                                                await seenWriteSemaphore.WaitAsync();
+                                                try
+                                                {
+                                                    SeenUser user = await _ss.GetSeen(seenMsg);
+                                                    SendUser(writer, user, replyTo);
+                                                }
+                                                catch(Exception ex)
+                                                {
+                                                    _logger.LogError(ex.Message);
+                                                }
+                                                finally
+                                                {
+                                                    seenWriteSemaphore.Release();
+                                                }                                            
                                                 break;
                                             case ":.8ball":
                                                 string eballQ = GetRestOfMessage(msg).Trim();

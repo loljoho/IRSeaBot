@@ -76,6 +76,20 @@ namespace IRSeaBot.Services
                 Usage = ".8ball <yes or no question>",
                 Description = "Predicts the future.",
             },
+            new Command
+            {
+                Title = "Fight",
+                Cmd = ".fight",
+                Usage = ".fight <user>",
+                Description = "Fights someone",
+            },
+            new Command
+            {
+                Title = "High Five",
+                Cmd = ".hi5",
+                Usage = ".hi5 <user>",
+                Description = "High fives someone",
+            },
         };
     }
 }
