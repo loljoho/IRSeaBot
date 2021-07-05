@@ -297,6 +297,12 @@ namespace IRSeaBot.Services
                                                 writer.WriteLine("PRIVMSG " + replyTo + " " + r);
                                                 writer.Flush();
                                                 break;
+                                            case ":.fc":
+                                                string fcMsg = GetRestOfMessage(msg);
+                                                string fc = await _ws.GetForecast(fcMsg);
+                                                writer.WriteLine("PRIVMSG " + replyTo + " " + fc);
+                                                writer.Flush();
+                                                break;
                                             case ":.yt":
                                                 string ytMsg = GetRestOfMessage(msg);
                                                 string ytR = await _yt.GetVideo(ytMsg);

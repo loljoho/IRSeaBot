@@ -9,6 +9,8 @@ namespace IRSeaBot.Models
     {
         public Location location { get; set; }
         public Current current { get; set; }
+
+        public Forecast forecast { get; set; }
     }
 
     public class Location
@@ -37,12 +39,45 @@ namespace IRSeaBot.Models
         public Condition condition { get; set; }
         public double wind_mph { get; set; }
         public double feelslike_f { get; set; }
+
+        public int humidity { get; set; }
     }
+
 
     public class Condition
     {
         public string text { get; set; }
         public string icon { get; set; }
         public int code { get; set; }
+    }
+
+    public class Forecast
+    {
+        public List<ForecastDay> ForecastDay { get; set; }
+    }
+
+    //public class ForecastDay
+    //{
+    //    public List<ForecastEntity> ForecastEntities { get; set; }
+    //}
+
+    public class ForecastDay
+    {
+        public DateTime date { get; set; }
+        public Day day { get; set; }
+
+    }
+
+    public class Day
+    {
+        public double maxtemp_f { get; set; }
+        public double mintemp_f { get; set; }
+        public double avgtemp_f { get; set; }
+        public double totalprecip_in { get; set; }
+        public int daily_chance_of_rain { get; set; }
+
+        public int daily_chance_of_snow { get; set; }
+        public double avghumidity { get; set; }
+        public Condition condition { get; set; }
     }
 }
