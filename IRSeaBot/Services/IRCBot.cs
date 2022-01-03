@@ -147,7 +147,7 @@ namespace IRSeaBot.Services
 
         private async Task LogUserAsync(StreamWriter writer, ChatReply reply, string replyTo)
         {
-            if (reply.Param.Equals(Settings.channel))
+            if (replyTo.Equals(Settings.channel))
             {
                 if (reply.Message.Contains(".seen")) return;
                 try
@@ -192,62 +192,65 @@ namespace IRSeaBot.Services
         {
             if (msg[0].EndsWith("++") || msg[0].EndsWith("--"))
             {
-                return true;
+                if(msg[0].Length > 2) return true;
             }
-            else
-            {
-                return false;
-            }
+            return false;
+        }
+
+        private void SetClientNick(StreamWriter writer)
+        {
+            writer.WriteLine("NICK " + _nick);
+            writer.Flush();
+            writer.WriteLine(_user);
+            writer.Flush();
+        }
+
+        private void SendPongReply(StreamWriter writer, ChatReply reply)
+        {
+            string pongReply = reply.Command;
+            writer.WriteLine("PONG " + pongReply);
+            writer.Flush();
+        }
+
+        private void JoinChannel(StreamWriter writer)
+        {
+            writer.WriteLine("JOIN " + _channel);
+            writer.Flush();
         }
 
         public async Task Chat(CancellationToken cancellationToken)
         {
             bool retry = true;
             int retryCount = 0;
-            await Task.Delay(25, cancellationToken);
             while (!cancellationToken.IsCancellationRequested && retry)
             {
                 try
                 {
+                    //join server and set nick
                     using var irc = new TcpClient(_server, _port);
                     using var stream = irc.GetStream();
                     using var reader = new StreamReader(stream);
                     using var writer = new StreamWriter(stream);
-                    writer.WriteLine("NICK " + _nick);
-                    writer.Flush();
-                    writer.WriteLine(_user);
-                    writer.Flush();
+                    SetClientNick(writer);
 
-                    while (true)
+                    while (true) //start chatting
                     {
                         string inputLine;
-                        while ((inputLine = reader.ReadLine()) != null)
+                        while ((inputLine = reader.ReadLine()) != null) //someone sent a message
                         {
                             try
                             {
-                                _logger.LogInformation("<- " + inputLine);
                                 ChatReply reply = ParseReply(inputLine);
                                 if (reply == null) continue;
-                                if (reply.User == "PING")
+                                else if(reply.User == "PING") // reply to server ping
                                 {
-                                    _logger.LogInformation("PING ->");
-                                    string PongReply = reply.Command;
-                                    _logger.LogInformation("->PONG " + PongReply);
-                                    writer.WriteLine("PONG " + PongReply);
-                                    writer.Flush();
+                                    SendPongReply(writer, reply);
                                 }
-
-                                switch (reply.Command)
+                                else if(reply.Command == "001") //join a channel
                                 {
-                                    case "001":
-                                        writer.WriteLine("JOIN " + _channel);
-                                        writer.Flush();
-                                        break;
-                                    default:
-                                        break;
+                                    JoinChannel(writer);
                                 }
-
-                                if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
+                                else if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
                                 {
                                     string replyTo = GetReplyTo(reply);
                                     await LogUserAsync(writer, reply, replyTo);
