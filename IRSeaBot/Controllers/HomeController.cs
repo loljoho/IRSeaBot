@@ -12,14 +12,6 @@ namespace IRSeaBot.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly ILogger<HomeController> _logger;
-        private readonly IRCBot _irc;
-        public HomeController(ILogger<HomeController> logger, IRCBot irc)
-        {
-            _logger = logger;
-            _irc = irc;
-        }
-
         public IActionResult Index()
         {
             return View();

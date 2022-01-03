@@ -1,10 +1,10 @@
 ﻿using IRSeaBot.Models;
 using System;
 using System.IO;
-using IRSeaBot.Utils;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using IRSeaBot.Factories;
+using System.Text;
 
 namespace IRSeaBot.Services
 {
@@ -16,8 +16,26 @@ namespace IRSeaBot.Services
         {
             Services = services;
         }
+        private static string GetRestOfMessage(string[] msg)
+        {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 1; i < msg.Length; i++)
+            {
+                sb.Append(msg[i] + " ");
+            }
+            return sb.ToString();
+        }
 
-        private string GetReplyTo(ChatReply reply)
+        private static string GetFirstWordOfMessage(string[] msg)
+        {
+            string word = String.Empty;
+            if (msg.Length >= 1)
+            {
+                word = msg[1];
+            }
+            return word;
+        }
+        private static string GetReplyTo(ChatReply reply)
         {
             string replyTo;
             if (reply.Param == "LookOfRobot") replyTo = reply.User.Substring(1).Split("!")[0];
@@ -47,7 +65,7 @@ namespace IRSeaBot.Services
             }
         }
 
-        private bool IsLike(string[] msg)
+        private static bool IsLike(string[] msg)
         {
             if (msg[0].EndsWith("++") || msg[0].EndsWith("--"))
             {
@@ -114,7 +132,7 @@ namespace IRSeaBot.Services
                         break;
                     case ":.help":
                         string help;
-                        string helpMsg = Util.GetRestOfMessage(msg);
+                        string helpMsg = GetRestOfMessage(msg);
                         if (String.IsNullOrWhiteSpace(helpMsg))
                         {
                             help = CommandRepository.GetCommands();
@@ -133,7 +151,7 @@ namespace IRSeaBot.Services
                         writer.Flush();
                         break;
                     case ":.fight":
-                        string fightMsg = Util.GetFirstWordOfMessage(msg);
+                        string fightMsg = GetFirstWordOfMessage(msg);
                         if (!String.IsNullOrWhiteSpace(fightMsg))
                         {
                             string fight = FightFactory.GetFight(fightMsg);
@@ -142,7 +160,7 @@ namespace IRSeaBot.Services
                         }
                         break;
                     case ":.hi5":
-                        string hi5Msg = Util.GetFirstWordOfMessage(msg);
+                        string hi5Msg = GetFirstWordOfMessage(msg);
                         if (!String.IsNullOrWhiteSpace(hi5Msg))
                         {
                             string sender = reply.User.Substring(1).Split("!")[0];
@@ -152,7 +170,7 @@ namespace IRSeaBot.Services
                         }
                         break;
                     case ":.we":
-                        string msg2 = Util.GetRestOfMessage(msg);
+                        string msg2 = GetRestOfMessage(msg);
                         using (var scope = Services.CreateScope())
                         {
 
@@ -163,7 +181,7 @@ namespace IRSeaBot.Services
                         }
                         break;
                     case ":.fc":
-                        string fcMsg = Util.GetRestOfMessage(msg);
+                        string fcMsg = GetRestOfMessage(msg);
                         using (var scope = Services.CreateScope())
                         {
 
@@ -174,7 +192,7 @@ namespace IRSeaBot.Services
                         }
                         break;
                     case ":.yt":
-                        string ytMsg = Util.GetRestOfMessage(msg);
+                        string ytMsg = GetRestOfMessage(msg);
                         using (var scope = Services.CreateScope())
                         {
 
@@ -185,7 +203,7 @@ namespace IRSeaBot.Services
                         }
                         break;
                     case ":.likes":
-                        string phrase = Util.GetRestOfMessage(msg).Trim();
+                        string phrase = GetRestOfMessage(msg).Trim();
                         if(phrase.Length > 0)
                         {
                             using (var scope = Services.CreateScope())
@@ -198,7 +216,7 @@ namespace IRSeaBot.Services
                         }
                         break;
                     case ":.seen":
-                        string seenMsg = Util.GetRestOfMessage(msg);
+                        string seenMsg = GetRestOfMessage(msg);
                         using (var scope = Services.CreateScope())
                         {
                             IFileService<SeenUser> _s = scope.ServiceProvider.GetRequiredService<IFileService<SeenUser>>();
@@ -208,7 +226,7 @@ namespace IRSeaBot.Services
                         }
                         break;
                     case ":.8ball":
-                        string eballQ = Util.GetRestOfMessage(msg).Trim();
+                        string eballQ = GetRestOfMessage(msg).Trim();
                         string eballReply;
                         if (!eballQ.EndsWith("?"))
                         {
