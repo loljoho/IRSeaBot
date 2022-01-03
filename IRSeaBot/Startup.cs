@@ -32,6 +32,8 @@ namespace IRSeaBot
             services.AddHttpClient();
             services.AddScoped<WeatherService>();
             services.AddScoped<YouTubeService>();
+            services.AddScoped<ForecastService>();
+            services.AddScoped<BotCommandResolver>();
             services.AddScoped(typeof(IFileService<>), typeof(GenericFileService<>));
 
         }

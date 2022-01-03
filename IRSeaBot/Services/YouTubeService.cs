@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 
 namespace IRSeaBot.Services
 {
-    public class YouTubeService
+    public class YouTubeService : IBotService
     {
-        public async Task<string> GetVideo(string searchKey)
+        public async Task<string> Get(string searchKey, string replyTo)
         {
             using(HttpClient http = new HttpClient())
             {
@@ -21,7 +21,8 @@ namespace IRSeaBot.Services
                     string resp = await response.Content.ReadAsStringAsync();
                     YouTubeReply yr = JsonConvert.DeserializeObject<YouTubeReply>(resp);
                     string r = $"https://www.youtube.com/watch?v={yr.Items[0].id.videoId}";
-                    return r;
+                    string reply = "PRIVMSG {replyTo} {r}";
+                    return reply;
                 }
                 return "";
             }

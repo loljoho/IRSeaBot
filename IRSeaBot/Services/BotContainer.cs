@@ -19,12 +19,9 @@ namespace IRSeaBot.Services
 
         private async Task StartBot(CancellationToken cancellationToken)
         {
-            using(var scope = Services.CreateScope())
-            {
-
-                IRCBot bot = scope.ServiceProvider.GetRequiredService<IRCBot>();
-                await bot.Chat(cancellationToken);
-            }
+            using var scope = Services.CreateScope();
+            IRCBot bot = scope.ServiceProvider.GetRequiredService<IRCBot>();
+            await bot.Chat(cancellationToken);
         }
 
 

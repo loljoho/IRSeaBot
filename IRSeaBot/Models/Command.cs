@@ -11,5 +11,13 @@ namespace IRSeaBot.Models
         public string Cmd { get; set; }
         public string Usage { get; set; }
         public string Description { get; set; }
+        
+        public string CommandString
+        {
+            get
+            {
+                return $"{Title}: {Description} - Usage: {Usage}";
+            }
+        }
     }
 }

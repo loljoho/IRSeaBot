@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace IRSeaBot.Services
 {
-    public interface IFileService<T> where T : IFileItem
+    public interface IFileService<T> : IBotService where T : IFileItem
     {
         Task<FileList<T>> GetFileList();
         string GetPath();

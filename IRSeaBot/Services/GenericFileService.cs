@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace IRSeaBot.Services
 {
-    public class GenericFileService<T> : IFileService<T> where T : class, IFileItem
+    public class GenericFileService<T> : IBotService, IFileService<T> where T : class, IFileItem
     {
         private static SemaphoreSlim semaphore = new(1);
         private const string folderName = "IRSeaBot";
@@ -64,6 +64,12 @@ namespace IRSeaBot.Services
             }
         }
 
+        public async Task<string> Get(string key, string replyTo)
+        {
+            T item = await GetFileItem(key);
+            return item?.GetSendMessage(replyTo);
+        }
+
         public string GetPath()
         {
             var systemPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -99,7 +105,8 @@ namespace IRSeaBot.Services
             T item = list.Items.FirstOrDefault(x => x.Key == newItem.Key);
             if (item == null)
             {
-                list.Items.Add(newItem);
+                item = newItem;
+                list.Items.Add(item);
             }
             else
             {
