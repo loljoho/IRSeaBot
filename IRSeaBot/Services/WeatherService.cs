@@ -28,7 +28,7 @@ namespace IRSeaBot.Services
         public async Task<string> GetForecast(string zip)
         {
             using HttpClient http = new HttpClient();
-            string query = $"http://api.weatherapi.com/v1/forecast.json?key={Settings.WeatherKey}&q={zip}";
+            string query = $"http://api.weatherapi.com/v1/forecast.json?key={Settings.WeatherKey}&q={zip}&days=1";
             HttpResponseMessage response = await http.GetAsync(query);
             if (response.IsSuccessStatusCode)
             {

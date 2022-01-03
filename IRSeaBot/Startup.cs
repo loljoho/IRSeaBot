@@ -1,3 +1,5 @@
+using IRSeaBot.Factories;
+using IRSeaBot.Models;
 using IRSeaBot.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -19,7 +21,7 @@ namespace IRSeaBot
             Configuration = configuration;
         }
 
-        public IConfiguration Configuration { get; }
+        public static IConfiguration Configuration { get; private set; }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
@@ -30,8 +32,7 @@ namespace IRSeaBot
             services.AddHttpClient();
             services.AddScoped<WeatherService>();
             services.AddScoped<YouTubeService>();
-            services.AddScoped<LikesService>();
-            services.AddScoped<SeenService>();
+            services.AddScoped(typeof(IFileService<>), typeof(GenericFileService<>));
 
         }
 

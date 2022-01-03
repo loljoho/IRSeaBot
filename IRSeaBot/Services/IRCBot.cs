@@ -1,4 +1,5 @@
-﻿using IRSeaBot.Models;
+﻿using IRSeaBot.Factories;
+using IRSeaBot.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
@@ -28,26 +29,16 @@ namespace IRSeaBot.Services
         private readonly int _maxRetries = Settings.maxRetries;
         private readonly WeatherService _ws;
         private readonly YouTubeService _yt;
-        private readonly LikesService _ls;
-        private readonly SeenService _ss;
-        private DateTime lastSeenWrite = DateTime.Now;
-        private Dictionary<string, SeenUser> seenUsers;
-        private System.Timers.Timer seenWriteTimer;
-        private readonly object seenDictLock = new();
-        private SemaphoreSlim seenWriteSemaphore;
+        private readonly IFileService<Like> _ls;
+        private readonly IFileService<SeenUser> _ss;
         private readonly ILogger<IRCBot> _logger;
 
-        public IRCBot(WeatherService ws, YouTubeService yt, LikesService ls, SeenService ss, ILogger<IRCBot> logger)
+        public IRCBot(WeatherService ws, YouTubeService yt, IFileService<Like> ls, IFileService<SeenUser> ss, ILogger<IRCBot> logger)
         {
             _ws = ws;
             _yt = yt;
             _ls = ls;
             _ss = ss;
-            seenWriteSemaphore = new SemaphoreSlim(1, 1);
-            seenUsers = new Dictionary<string, SeenUser>();
-            seenWriteTimer = new System.Timers.Timer(30000);
-            seenWriteTimer.AutoReset = true;
-            seenWriteTimer.Elapsed += async (sender, e) => await WriteSeens();
             _logger = logger;
         }
 
@@ -102,20 +93,84 @@ namespace IRSeaBot.Services
             }
         }
 
-        public void SendLike(StreamWriter writer, Like like, string replyTo)
+        public async Task SendLike(StreamWriter writer, string[] msg, string replyTo)
         {
-            if (like != null)
+            if (msg[0].EndsWith("++"))
             {
-                writer.WriteLine("PRIVMSG " + replyTo + " " + like.Phrase + " has " + like.Score + " likes.");
+                await SendLike(writer, msg, replyTo, '+');
+            }
+            else if (msg[0].EndsWith("--"))
+            {
+                await SendLike(writer, msg, replyTo, '-');
+            }
+        }
+
+        public async Task SendLike(StreamWriter writer, string[] msg, string replyTo, char direction)
+        {
+            string phrase = msg[0].Split(":")[1];
+            string[] input = new string[2];
+            if(direction == '+')
+            {           
+                phrase = phrase.Split("+")[0];
+                input[0] = phrase;
+                input[1] = "1";
+            }
+            else
+            {
+                phrase = phrase.Split("-")[0];
+                input[0] = phrase;
+                input[1] = "-1";
+            }
+            if (FileItemFactory.CreateFile(input, FileTypes.Likes) is Like like)
+            {
+                Like newLike = await _ls.WriteFile(like);
+                writer.WriteLine(newLike?.GetSendMessage(replyTo));
                 writer.Flush();
             }
         }
 
-        private void SendUser(StreamWriter writer, SeenUser user, string replyTo)
+        public async Task GetLike(StreamWriter writer, string[] msg, string replyTo)
         {
-            if(user != null)
+            string phrase = GetRestOfMessage(msg);
+            Like like = await _ls.GetFileItem(phrase.Trim());
+            if(like != null)
             {
-                writer.WriteLine("PRIVMSG " + replyTo + " " + user.Username + " was last seen at " + user.Timestamp.ToString() + " saying " + user.Message);
+                writer.WriteLine(like.GetSendMessage(replyTo));
+                writer.Flush();
+            }
+            else
+            {
+                writer.WriteLine($"PRIVMSG {replyTo} {phrase} has 0 likes");
+                writer.Flush();
+            }
+        }
+
+        private async Task LogUserAsync(StreamWriter writer, ChatReply reply, string replyTo)
+        {
+            if (reply.Param.Equals(Settings.channel))
+            {
+                if (reply.Message.Contains(".seen")) return;
+                try
+                {
+                    string username = reply.User.Substring(1).Split("!")[0];
+                    if (username == Settings.nick) return; //don't log the bot
+                    string[] input = { username, reply.Message, DateTime.Now.ToString() };
+                    SeenUser seenUser = FileItemFactory.CreateFile(input, FileTypes.Seen) as SeenUser;
+                    await _ss.WriteFile(seenUser);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.Message);
+                }
+            }
+        }
+
+        private async Task GetSeen(string[] msg, string replyTo, StreamWriter writer)
+        {
+            string seenMsg = GetRestOfMessage(msg);
+            if (await _ss.GetFileItem(seenMsg) is SeenUser user)
+            {
+                writer.WriteLine(user.GetSendMessage(replyTo));
                 writer.Flush();
             }
             else
@@ -124,60 +179,31 @@ namespace IRSeaBot.Services
                 writer.Flush();
             }
         }
-
-        private void LogUser(ChatReply reply)
+        
+        private string GetReplyTo(ChatReply reply)
         {
-            if (reply.Message.Contains(".seen")) return;
-            try
-            {
-                string username = reply.User.Substring(1).Split("!")[0];
-                if (username == Settings.nick) return; //don't log the bot
-                SeenUser seenUser = new SeenUser
-                {
-                    Username = username,
-                    Message = reply.Message.Replace('|', ' ').Replace('~', ' '), //remove delimiters
-                    Timestamp = DateTime.Now
-                };
-                lock (seenDictLock)
-                {
-                    seenUsers[seenUser.Username] = seenUser;
-                }
-            }catch(Exception ex)
-            {
-                _logger.LogError(ex.Message);
-            }
+            string replyTo;
+            if (reply.Param == "LookOfRobot") replyTo = reply.User.Substring(1).Split("!")[0];
+            else replyTo = reply.Param;
+            return replyTo;
         }
 
-        private async Task WriteSeens()
+        private bool IsLike(string[] msg)
         {
-            if(seenUsers.Count > 0)
+            if (msg[0].EndsWith("++") || msg[0].EndsWith("--"))
             {
-                Dictionary<string, SeenUser> writes;
-                lock (seenDictLock)
-                {
-                    writes = new Dictionary<string, SeenUser>(seenUsers);
-                    seenUsers.Clear();
-                }
-                await seenWriteSemaphore.WaitAsync();
-                try
-                {
-                    await _ss.WriteSeens(writes);
-                }catch(Exception ex)
-                {
-                    _logger.LogError(ex.Message);
-                }
-                finally
-                {
-                    seenWriteSemaphore.Release();
-                }                         
-            }      
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         public async Task Chat(CancellationToken cancellationToken)
         {
             bool retry = true;
             int retryCount = 0;
-            seenWriteTimer.Start();
             await Task.Delay(25, cancellationToken);
             while (!cancellationToken.IsCancellationRequested && retry)
             {
@@ -223,26 +249,13 @@ namespace IRSeaBot.Services
 
                                 if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
                                 {
-                                    if (reply.Param.Equals(Settings.channel)) LogUser(reply);
-
-                                    string replyTo = "";
-                                    if (reply.Param == "LookOfRobot") replyTo = reply.User.Substring(1).Split("!")[0];
-                                    else replyTo = reply.Param;
+                                    string replyTo = GetReplyTo(reply);
+                                    await LogUserAsync(writer, reply, replyTo);
                                     string[] msg = reply.Message.Split(" ");
-
-                                    if (msg[0].EndsWith("++"))
+                                    
+                                    if (IsLike(msg))
                                     {
-                                        string phrase = msg[0].Split(":")[1];
-                                        phrase = phrase.Split("+")[0];
-                                        Like like = await _ls.EditLike(phrase, "+");
-                                        SendLike(writer, like, replyTo);
-                                    }
-                                    else if (msg[0].EndsWith("--"))
-                                    {
-                                        string phrase = msg[0].Split(":")[1];
-                                        phrase = phrase.Split("-")[0];
-                                        Like like = await _ls.EditLike(phrase, "-");
-                                        SendLike(writer, like, replyTo);
+                                        await SendLike(writer, msg, replyTo);
                                     }
                                     else
                                     {
@@ -310,26 +323,10 @@ namespace IRSeaBot.Services
                                                 writer.Flush();
                                                 break;
                                             case ":.likes":
-                                                string phrase = GetRestOfMessage(msg);
-                                                Like like = await _ls.GetLikes(phrase.Trim());
-                                                SendLike(writer, like, replyTo);
+                                                await GetLike(writer, msg, replyTo);
                                                 break;
                                             case ":.seen":
-                                                string seenMsg = GetRestOfMessage(msg);
-                                                await seenWriteSemaphore.WaitAsync();
-                                                try
-                                                {
-                                                    SeenUser user = await _ss.GetSeen(seenMsg);
-                                                    SendUser(writer, user, replyTo);
-                                                }
-                                                catch(Exception ex)
-                                                {
-                                                    _logger.LogError(ex.Message);
-                                                }
-                                                finally
-                                                {
-                                                    seenWriteSemaphore.Release();
-                                                }                                            
+                                                await GetSeen(msg, replyTo, writer);                                        
                                                 break;
                                             case ":.8ball":
                                                 string eballQ = GetRestOfMessage(msg).Trim();
