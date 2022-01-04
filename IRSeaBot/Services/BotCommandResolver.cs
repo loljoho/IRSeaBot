@@ -196,7 +196,7 @@ namespace IRSeaBot.Services
                         using (var scope = Services.CreateScope())
                         {
 
-                            ForecastService _s = scope.ServiceProvider.GetRequiredService<ForecastService>();
+                            YouTubeService _s = scope.ServiceProvider.GetRequiredService<YouTubeService>();
                             string r = await _s.Get(ytMsg, replyTo);
                             writer.WriteLine(r);
                             writer.Flush();

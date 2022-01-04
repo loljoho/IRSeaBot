@@ -29,7 +29,6 @@ namespace IRSeaBot
             services.AddControllersWithViews();
             services.AddHostedService<BotContainer>();
             services.AddScoped<IRCBot>();
-            services.AddHttpClient();
             services.AddScoped<WeatherService>();
             services.AddScoped<YouTubeService>();
             services.AddScoped<ForecastService>();
