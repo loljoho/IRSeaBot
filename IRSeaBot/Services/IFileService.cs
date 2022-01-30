@@ -14,5 +14,7 @@ namespace IRSeaBot.Services
         Task<T> GetFileItem(string key);
 
         Task<T> WriteFile(T newItem);
+
+        Task RemoveFileItems(List<string> keys);
     }
 }

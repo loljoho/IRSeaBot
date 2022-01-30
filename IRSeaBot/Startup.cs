@@ -33,6 +33,7 @@ namespace IRSeaBot
             services.AddScoped<YouTubeService>();
             services.AddScoped<ForecastService>();
             services.AddScoped<BotCommandResolver>();
+            services.AddSingleton<ReminderContainer>();
             services.AddScoped(typeof(IFileService<>), typeof(GenericFileService<>));
 
         }

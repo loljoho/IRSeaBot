@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using IRSeaBot.Factories;
 using System.Text;
+using System.Collections.Generic;
 
 namespace IRSeaBot.Services
 {
@@ -63,6 +64,29 @@ namespace IRSeaBot.Services
                     Console.WriteLine(ex.Message);
                 }
             }
+        }
+
+
+        private async Task WriteReminder(StreamWriter writer, string message, ChatReply chatReply, string replyTo)
+        {
+            string username = chatReply.User.Substring(1).Split("!")[0];
+            string[] input = message.Split("-");
+            Reminder reminder = FileItemFactory.CreateReminder(input, username, replyTo);
+            if(reminder != null)
+            {
+                using var scope = Services.CreateScope();
+                IFileService<Reminder> _s = scope.ServiceProvider.GetRequiredService<IFileService<Reminder>>();
+                Reminder newReminder = await _s.WriteFile(reminder);
+                writer.WriteLine(newReminder?.GetSendMessage(replyTo));
+                writer.Flush();
+                ReminderContainer.AddReminder(reminder);
+            }
+            else
+            {
+                writer.WriteLine($"PRIVMSG {replyTo} reminder format is #y#mo#w#d#m#h#s - reminder message");
+                writer.Flush();
+            }
+
         }
 
         private static bool IsLike(string[] msg)
@@ -238,6 +262,10 @@ namespace IRSeaBot.Services
                         }
                         writer.WriteLine("PRIVMSG " + replyTo + " " + eballReply);
                         writer.Flush();
+                        break;
+                    case ":.remind":
+                        string reminderMessage = GetRestOfMessage(msg).Trim();
+                        await WriteReminder(writer, reminderMessage, reply, replyTo);
                         break;
                     default:
                         break;

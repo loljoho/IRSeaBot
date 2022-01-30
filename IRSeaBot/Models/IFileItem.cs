@@ -15,6 +15,7 @@ namespace IRSeaBot.Models
     public enum FileTypes
     {
         Seen,
-        Likes
+        Likes,
+        Reminders
     }
 }

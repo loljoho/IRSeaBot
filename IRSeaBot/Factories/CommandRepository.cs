@@ -125,6 +125,13 @@ namespace IRSeaBot.Services
                 Usage = ".8ball <yes or no question>",
                 Description = "Predicts the future.",
             },
+            new Command
+            {
+                Title = "Reminder",
+                Cmd = ".remind",
+                Usage = "#y#mo#w#d#m#h#s - reminder message",
+                Description = "Sets a reminder",
+            },
         };
     }
 }

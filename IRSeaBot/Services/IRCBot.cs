@@ -9,11 +9,11 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-
+using System.Timers;
 
 namespace IRSeaBot.Services
 {
-    public class IRCBot
+    public class IRCBot : IDisposable
     {
         // server to connect to
         private readonly string _server = Settings.server;
@@ -28,9 +28,14 @@ namespace IRSeaBot.Services
         private readonly int _maxRetries = Settings.maxRetries;
         private readonly ILogger<IRCBot> _logger;
         private readonly BotCommandResolver _resolver;
-        public IRCBot(BotCommandResolver resolver, ILogger<IRCBot> logger)
+        private readonly ReminderContainer _reminderContainer;
+        private System.Timers.Timer reminderTimer;
+        private bool disposedValue;
+
+        public IRCBot(BotCommandResolver resolver, ILogger<IRCBot> logger, ReminderContainer reminderContainer)
         {
             _resolver = resolver;
+            _reminderContainer = reminderContainer;
             _logger = logger;
         }
 
@@ -86,11 +91,18 @@ namespace IRSeaBot.Services
             writer.Flush();
         }
 
+        private async Task CheckReminders(StreamWriter writer)
+        {
+            await _reminderContainer.CheckReminders(writer);
+        }
+
         public async Task Chat(CancellationToken cancellationToken)
         {
             bool retry = true;
             int retryCount = 0;
-            await Task.Delay(10, cancellationToken);
+            await _reminderContainer.LoadReminders();
+            reminderTimer = new System.Timers.Timer(10000);
+            //await Task.Delay(10, cancellationToken);
             while (!cancellationToken.IsCancellationRequested && retry)
             {
                 try
@@ -101,7 +113,9 @@ namespace IRSeaBot.Services
                     using var reader = new StreamReader(stream);
                     using var writer = new StreamWriter(stream);
                     SetClientNick(writer);
-
+                    reminderTimer.Elapsed += async (sender, args)  => await CheckReminders(writer);
+                    reminderTimer.AutoReset = true;
+                    reminderTimer.Start();
                     while (true) //start chatting
                     {
                         string inputLine;
@@ -135,11 +149,31 @@ namespace IRSeaBot.Services
                 {
                     // shows the exception, sleeps for a little while and then tries to establish a new connection to the IRC server
                     _logger.LogInformation(e.ToString());
+                    reminderTimer.Stop();
                     await Task.Delay(5000);
                     retryCount++;
                     if (retryCount > _maxRetries) retry = false;
                 }
             }
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {                   
+                    reminderTimer.Dispose();
+                }
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

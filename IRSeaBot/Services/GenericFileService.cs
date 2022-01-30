@@ -98,12 +98,47 @@ namespace IRSeaBot.Services
             return pathString;
         }
 
+        public async Task RemoveFileItems(List<string> keys)
+        {
+            string pathString = GetPath();
+            FileList<T> list = await GetFileList();
+            foreach(string key in keys)
+            {
+                T item = list.Items.FirstOrDefault(x => x.Key == key);
+                if (item != null)
+                {
+                    list.Items.Remove(item);
+                }
+            }
+
+            var tempFile = Path.GetTempFileName();
+            string json = JsonConvert.SerializeObject(list);
+            await semaphore.WaitAsync();
+            try
+            {
+                using (StreamWriter output = new StreamWriter(tempFile))
+                {
+                    await output.WriteLineAsync(json);
+                }
+                File.Delete(pathString);
+                File.Move(tempFile, pathString);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }
+
         public async Task<T> WriteFile(T newItem)
         {
             string pathString = GetPath();
             FileList<T> list = await GetFileList();
             T item = list.Items.FirstOrDefault(x => x.Key == newItem.Key);
-            if (item == null)
+            if (item == null) //reminder keys are always unique
             {
                 item = newItem;
                 list.Items.Add(item);
