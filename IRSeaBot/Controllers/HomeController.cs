@@ -12,9 +12,23 @@ namespace IRSeaBot.Controllers
 {
     public class HomeController : Controller
     {
+        private BotContainer _botContainer;
+
+        public HomeController(BotContainer botContainer)
+        {
+            _botContainer = botContainer;
+        }
+
         public IActionResult Index()
         {
             return View();
+        }
+
+        public async Task<IActionResult> Restart([FromQuery] string nick)
+        {
+            Settings.nick = nick;
+            await _botContainer.Restart();
+            return Index();
         }
 
         public IActionResult Privacy()

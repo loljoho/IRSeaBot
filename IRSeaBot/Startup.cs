@@ -27,7 +27,7 @@ namespace IRSeaBot
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllersWithViews();
-            services.AddHostedService<BotContainer>();
+            //services.AddHostedService<BotContainer>();
             services.AddScoped<IRCBot>();
             services.AddScoped<WeatherService>();
             services.AddScoped<YouTubeService>();
@@ -35,6 +35,9 @@ namespace IRSeaBot
             services.AddScoped<BotCommandResolver>();
             services.AddSingleton<ReminderContainer>();
             services.AddScoped(typeof(IFileService<>), typeof(GenericFileService<>));
+
+            services.AddSingleton<BotContainer>();
+            services.AddHostedService<BotContainer>(provider => provider.GetService<BotContainer>());
 
         }
 
