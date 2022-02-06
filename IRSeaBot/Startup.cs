@@ -37,7 +37,7 @@ namespace IRSeaBot
             services.AddScoped(typeof(IFileService<>), typeof(GenericFileService<>));
 
             services.AddSingleton<BotContainer>();
-            services.AddHostedService<BotContainer>(provider => provider.GetService<BotContainer>());
+            //services.AddHostedService<BotContainer>(provider => provider.GetService<BotContainer>());
 
         }
 

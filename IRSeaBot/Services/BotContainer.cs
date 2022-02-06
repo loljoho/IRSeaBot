@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using IRSeaBot.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Concurrent;
@@ -9,45 +10,47 @@ using System.Threading.Tasks;
 
 namespace IRSeaBot.Services
 {
-    public class BotContainer : BackgroundService
+    public class BotContainer
     {
         public IServiceProvider Services;
-        public CancellationTokenSource cts;
-        public CancellationToken token;
+        private ConcurrentDictionary<Guid, IRCBot> botDictionary;
 
         public BotContainer(IServiceProvider services)
         {
             Services = services;
+            botDictionary = new ConcurrentDictionary<Guid,IRCBot>();
         }
 
-        private async Task StartBot(CancellationToken cancellationToken)
+        public List<IRCBot> GetBotList()
         {
-            token = cancellationToken;
+            return botDictionary.Values.ToList();
+        }
+
+        public void StartBot(BotConfiguration config)
+        {
+            CancellationToken token = config.cancellationTokenSource.Token;
             using var scope = Services.CreateScope();
             IRCBot bot = scope.ServiceProvider.GetRequiredService<IRCBot>();
-            await bot.Chat(cancellationToken);
+            bool added = botDictionary.TryAdd(config.Id, bot);
+            if (added)
+            {
+                _ = bot.Chat(token, config, Services);
+            }
         }
 
-
-        public override void Dispose()
+        public void StopBot(Guid guid)
         {
-            cts?.Dispose();
-            base.Dispose();
-        }
-
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            await StartBot(cancellationToken);
-        }
-
-        public async Task Restart()
-        {
-            await base.StopAsync(token);
-            if(cts != null && !cts.Token.IsCancellationRequested) cts.Cancel();
-            cts?.Dispose();
-            cts = new CancellationTokenSource();
-            token = cts.Token;
-            await base.StartAsync(token);
+            bool found = botDictionary.TryGetValue(guid, out var bot);
+            if (found)
+            {
+                BotConfiguration config = bot.getConfig();
+                config.cancellationTokenSource.Cancel();
+                bool removed = botDictionary.TryRemove(guid, out var removedBot);
+                if (removed)
+                {
+                    Console.WriteLine($"bot {removedBot.getConfig().Id}");
+                }
+            }
         }
     }
 }

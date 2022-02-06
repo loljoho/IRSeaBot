@@ -2,6 +2,7 @@
 using IRSeaBot.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -24,11 +25,32 @@ namespace IRSeaBot.Controllers
             return View();
         }
 
-        public async Task<IActionResult> Restart([FromQuery] string nick)
+        [HttpPost]
+        public IActionResult StartBot(string config)
         {
-            Settings.nick = nick;
-            await _botContainer.Restart();
-            return Index();
+            BotConfiguration configuration = JsonConvert.DeserializeObject<BotConfiguration>(config);
+            Guid botID = configuration.Id;
+            _botContainer.StartBot(configuration);
+            string rtn = JsonConvert.SerializeObject(configuration);
+            return Ok(rtn);
+        }
+
+        [HttpGet]
+        public IActionResult GetBotList()
+        {
+            List<IRCBot> bots = _botContainer.GetBotList();
+            List<BotConfiguration> configurations = bots.Select(x => x.getConfig()).ToList();
+            string rtn = JsonConvert.SerializeObject(configurations);
+            return Ok(rtn);
+
+        }
+
+        [HttpGet]
+        public IActionResult Kill([FromQuery] string id)
+        {
+            Guid guid = Guid.Parse(id);
+            _botContainer.StopBot(guid);
+            return Ok(guid);
         }
 
         public IActionResult Privacy()

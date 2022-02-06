@@ -13,30 +13,35 @@ using System.Timers;
 
 namespace IRSeaBot.Services
 {
-    public class IRCBot : IDisposable
+    public class IRCBot
     {
         // server to connect to
-        private readonly string _server = Settings.server;
+        private string _server; // Settings.server;
         // server port (6667 by default)
-        private readonly int _port = Settings.port;
+        private int _port; // Settings.port;
         // user information defined in RFC 2812 (IRC: Client Protocol) is sent to the IRC server 
-        private readonly string _user = Settings.user;
+        private string _user; //Settings.user;
         // the bot's nickname
-        private readonly string _nick = Settings.nick;
+        private string _nick;/* = Settings.nick;*/
         // channel to join
-        private readonly string _channel = Settings.channel;
+        private string _channel;// = Settings.channel;
         private readonly int _maxRetries = Settings.maxRetries;
         private readonly ILogger<IRCBot> _logger;
         private readonly BotCommandResolver _resolver;
         private readonly ReminderContainer _reminderContainer;
         private System.Timers.Timer reminderTimer;
-        private bool disposedValue;
+        private BotConfiguration _config; 
 
         public IRCBot(BotCommandResolver resolver, ILogger<IRCBot> logger, ReminderContainer reminderContainer)
         {
             _resolver = resolver;
             _reminderContainer = reminderContainer;
             _logger = logger;
+        }
+
+        public BotConfiguration getConfig()
+        {
+            return _config;
         }
 
         private ChatReply ParseReply(string inputLine)
@@ -96,84 +101,92 @@ namespace IRSeaBot.Services
             await _reminderContainer.CheckReminders(writer);
         }
 
-        public async Task Chat(CancellationToken cancellationToken)
+        public async Task Chat(CancellationToken cancellationToken, BotConfiguration config, IServiceProvider services)
         {
+            _config = config;
+            _server = config.Server;
+            _port = config.Port;
+            _user = config.User;
+            _nick = config.Nick; 
+            _channel = config.Channel;
             bool retry = true;
             int retryCount = 0;
             await _reminderContainer.LoadReminders();
             reminderTimer = new System.Timers.Timer(10000);
             //await Task.Delay(10, cancellationToken);
-            while (!cancellationToken.IsCancellationRequested && retry)
+            try
             {
-                try
+                while (!cancellationToken.IsCancellationRequested && retry)
                 {
-                    //join server and set nick
-                    using var irc = new TcpClient(_server, _port);
-                    using var stream = irc.GetStream();
-                    using var reader = new StreamReader(stream);
-                    using var writer = new StreamWriter(stream);
-                    SetClientNick(writer);
-                    reminderTimer.Elapsed += async (sender, args)  => await CheckReminders(writer);
-                    reminderTimer.AutoReset = true;
-                    reminderTimer.Start();
-                    while (true) //start chatting
+                    try
                     {
+                        //join server and set nick
+                        using var irc = new TcpClient(_server, _port);
+                        using var stream = irc.GetStream();
+                        using var reader = new StreamReader(stream);
+                        using var writer = new StreamWriter(stream);
+                        using CancellationTokenRegistration ctr = cancellationToken.Register(() => {
+                            retryCount = _maxRetries;
+                            retry = false;
+                            writer.Close();
+                            reader.Close();
+                            stream.Close();
+                            irc.Close();
+                            //cancellationToken.ThrowIfCancellationRequested();
+                        });
+                        SetClientNick(writer);
+                        reminderTimer.Elapsed += async (sender, args) => await CheckReminders(writer);
+                        reminderTimer.AutoReset = true;
+                        reminderTimer.Start();
                         string inputLine;
-                        while ((inputLine = reader.ReadLine()) != null) //someone sent a message
+                        while (!cancellationToken.IsCancellationRequested && (inputLine = reader.ReadLine()) != null) //someone sent a message
                         {
+
                             try
                             {
                                 ChatReply reply = ParseReply(inputLine);
                                 if (reply == null) continue;
-                                else if(reply.User == "PING") // reply to server ping
+                                else if (reply.User == "PING") // reply to server ping
                                 {
                                     SendPongReply(writer, reply);
                                 }
-                                else if(reply.Command == "001") //join a channel
+                                else if (reply.Command == "001") //join a channel
                                 {
                                     JoinChannel(writer);
                                 }
                                 else if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
                                 {
-                                    await _resolver.ResolveCommand(writer, reply);
+                                    await _resolver.ResolveCommand(writer, reply, services);
                                 }
                             }
-                            catch(Exception ex)
+                            catch (Exception ex)
                             {
                                 _logger.LogError(ex.Message);
                             }
                         }
                     }
-                }
-                catch (Exception e)
-                {
-                    // shows the exception, sleeps for a little while and then tries to establish a new connection to the IRC server
-                    _logger.LogInformation(e.ToString());
-                    reminderTimer.Stop();
-                    await Task.Delay(5000);
-                    retryCount++;
-                    if (retryCount > _maxRetries) retry = false;
+                    catch (Exception e)
+                    {
+                        // shows the exception, sleeps for a little while and then tries to establish a new connection to the IRC server
+                        _logger.LogInformation(e.ToString());
+                        reminderTimer.Stop();
+                        await Task.Delay(5000);
+                        retryCount++;
+                        if (retryCount > _maxRetries) retry = false;
+                    }
                 }
             }
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
+            catch(Exception e)
             {
-                if (disposing)
-                {                   
+                Console.WriteLine(e.Message);
+            }
+            finally
+            {
+                if (reminderTimer != null)
+                {
                     reminderTimer.Dispose();
                 }
-                disposedValue = true;
             }
-        }
-
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
         }
     }
 }
