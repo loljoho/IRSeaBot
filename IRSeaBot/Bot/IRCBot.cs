@@ -15,16 +15,6 @@ namespace IRSeaBot.Services
 {
     public class IRCBot
     {
-        // server to connect to
-        private string _server; // Settings.server;
-        // server port (6667 by default)
-        private int _port; // Settings.port;
-        // user information defined in RFC 2812 (IRC: Client Protocol) is sent to the IRC server 
-        private string _user; //Settings.user;
-        // the bot's nickname
-        private string _nick;/* = Settings.nick;*/
-        // channel to join
-        private string _channel;// = Settings.channel;
         private readonly int _maxRetries = Settings.maxRetries;
         private readonly ILogger<IRCBot> _logger;
         private readonly BotCommandResolver _resolver;
@@ -75,11 +65,11 @@ namespace IRSeaBot.Services
             }
         }
 
-        private void SetClientNick(StreamWriter writer)
+        private void SetClientNick(StreamWriter writer, string user, string nick)
         {
-            writer.WriteLine("NICK " + _nick);
+            writer.WriteLine($"NICK {nick}");
             writer.Flush();
-            writer.WriteLine(_user);
+            writer.WriteLine($"USER {user} 0 * : {user}");
             writer.Flush();
         }
 
@@ -90,9 +80,9 @@ namespace IRSeaBot.Services
             writer.Flush();
         }
 
-        private void JoinChannel(StreamWriter writer)
+        private void JoinChannel(StreamWriter writer, string channel)
         {
-            writer.WriteLine("JOIN " + _channel);
+            writer.WriteLine("JOIN " + channel);
             writer.Flush();
         }
 
@@ -104,16 +94,10 @@ namespace IRSeaBot.Services
         public async Task Chat(CancellationToken cancellationToken, BotConfiguration config, IServiceProvider services)
         {
             _config = config;
-            _server = config.Server;
-            _port = config.Port;
-            _user = config.User;
-            _nick = config.Nick; 
-            _channel = config.Channel;
             bool retry = true;
             int retryCount = 0;
             await _reminderContainer.LoadReminders();
-            reminderTimer = new System.Timers.Timer(10000);
-            //await Task.Delay(10, cancellationToken);
+            reminderTimer = new System.Timers.Timer(7000);
             try
             {
                 while (!cancellationToken.IsCancellationRequested && retry)
@@ -121,7 +105,7 @@ namespace IRSeaBot.Services
                     try
                     {
                         //join server and set nick
-                        using var irc = new TcpClient(_server, _port);
+                        using var irc = new TcpClient(config.Server, config.Port);
                         using var stream = irc.GetStream();
                         using var reader = new StreamReader(stream);
                         using var writer = new StreamWriter(stream);
@@ -132,9 +116,8 @@ namespace IRSeaBot.Services
                             reader.Close();
                             stream.Close();
                             irc.Close();
-                            //cancellationToken.ThrowIfCancellationRequested();
                         });
-                        SetClientNick(writer);
+                        SetClientNick(writer, config.Username, config.Nick);
                         reminderTimer.Elapsed += async (sender, args) => await CheckReminders(writer);
                         reminderTimer.AutoReset = true;
                         reminderTimer.Start();
@@ -152,7 +135,7 @@ namespace IRSeaBot.Services
                                 }
                                 else if (reply.Command == "001") //join a channel
                                 {
-                                    JoinChannel(writer);
+                                    JoinChannel(writer, config.Channel);
                                 }
                                 else if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
                                 {

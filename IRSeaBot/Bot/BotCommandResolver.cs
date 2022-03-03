@@ -3,20 +3,16 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using IRSeaBot.Factories;
 using System.Text;
 using System.Collections.Generic;
+using IRSeaBot.Data.Entities;
+using IRSeaBot.Data.Repositories;
+using IRSeaBot.Factories;
 
 namespace IRSeaBot.Services
 {
     public class BotCommandResolver
     {
-        //private IServiceProvider Services;
-
-        //public BotCommandResolver(IServiceProvider services)
-        //{
-        //    Services = services;
-        //}
         private static string GetRestOfMessage(string[] msg)
         {
             StringBuilder sb = new StringBuilder();
@@ -54,10 +50,10 @@ namespace IRSeaBot.Services
                     string username = reply.User.Substring(1).Split("!")[0];
                     if (username == Settings.nick) return; //don't log the bot
                     string[] input = { username, reply.Message, DateTime.Now.ToString() };
-                    SeenUser seenUser = FileItemFactory.CreateFile(input, FileTypes.Seen) as SeenUser;
+                    SeenUser seenUser = SeenUser.CreateSeen(input);
                     using var scope = services.CreateScope();
-                    IFileService<SeenUser> _s = scope.ServiceProvider.GetRequiredService<IFileService<SeenUser>>();
-                    await _s.WriteFile(seenUser);
+                    SeenUserRepository repository = scope.ServiceProvider.GetRequiredService<SeenUserRepository>();
+                    await repository.UpsertSeenUser(seenUser);
                 }
                 catch (Exception ex)
                 {
@@ -71,15 +67,15 @@ namespace IRSeaBot.Services
         {
             string username = chatReply.User.Substring(1).Split("!")[0];
             string[] input = message.Split("-");
-            Reminder reminder = FileItemFactory.CreateReminder(input, username, replyTo);
+            Reminder reminder = Reminder.CreateReminder(input, username, replyTo);
             if(reminder != null)
             {
                 using var scope = services.CreateScope();
-                IFileService<Reminder> _s = scope.ServiceProvider.GetRequiredService<IFileService<Reminder>>();
-                Reminder newReminder = await _s.WriteFile(reminder);
+                ReminderRepository repository = scope.ServiceProvider.GetRequiredService<ReminderRepository>();
+                Reminder newReminder = await repository.Insert(reminder);
                 writer.WriteLine(newReminder?.GetSendMessage(replyTo));
                 writer.Flush();
-                ReminderContainer.AddReminder(reminder);
+                await ReminderContainer.AddReminder(reminder);
             }
             else
             {
@@ -126,11 +122,18 @@ namespace IRSeaBot.Services
                 input[0] = phrase;
                 input[1] = "-1";
             }
-            if (FileItemFactory.CreateFile(input, FileTypes.Likes) is Like like)
+
+            if (Like.CreateLike(input) is Like like)
             {
                 using var scope = services.CreateScope();
-                IFileService<Like> _s = scope.ServiceProvider.GetRequiredService<IFileService<Like>>();
-                Like newLike = await _s.WriteFile(like);
+                LikeRepository repository = scope.ServiceProvider.GetRequiredService<LikeRepository>();
+                Like oldLike = await repository.GetByKey(like.Key);
+                if (oldLike == null) await repository.Insert(like);
+                else
+                {
+                    like.Score = oldLike.Score + like.Score;
+                }
+                Like newLike = await repository.UpsertLike(like);
                 writer.WriteLine(newLike?.GetSendMessage(replyTo));
                 writer.Flush();
             }
@@ -230,22 +233,22 @@ namespace IRSeaBot.Services
                         string phrase = GetRestOfMessage(msg).Trim();
                         if(phrase.Length > 0)
                         {
-                            using (var scope = services.CreateScope())
-                            {
-                                IFileService<Like> _s = scope.ServiceProvider.GetRequiredService<IFileService<Like>>();
-                                string r = await _s.Get(phrase, replyTo);
-                                writer.WriteLine(r);
-                                writer.Flush();
-                            }
+                            using var scope = services.CreateScope();
+                            LikeRepository repository = scope.ServiceProvider.GetRequiredService<LikeRepository>();
+                            Like like = await repository.GetByKey(phrase);
+                            string reponse = like.GetSendMessage(replyTo);
+                            writer.WriteLine(reponse);
+                            writer.Flush();
                         }
                         break;
                     case ":.seen":
                         string seenMsg = GetRestOfMessage(msg);
                         using (var scope = services.CreateScope())
                         {
-                            IFileService<SeenUser> _s = scope.ServiceProvider.GetRequiredService<IFileService<SeenUser>>();
-                            string r = await _s.Get(seenMsg, replyTo);
-                            writer.WriteLine(r);
+                            SeenUserRepository repository = scope.ServiceProvider.GetRequiredService<SeenUserRepository>();
+                            SeenUser user = await repository.GetByKey(seenMsg);
+                            string response = user.GetSendMessage(replyTo);
+                            writer.WriteLine(response);
                             writer.Flush();
                         }
                         break;

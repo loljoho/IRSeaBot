@@ -1,4 +1,4 @@
-﻿namespace IRSeaBot.Models
+﻿namespace IRSeaBot.Data.Entities
 {
     public class ReminderDuration
     {

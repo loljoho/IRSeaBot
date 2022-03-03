@@ -1,9 +1,12 @@
+using IRSeaBot.Data;
+using IRSeaBot.Data.Repositories;
 using IRSeaBot.Factories;
 using IRSeaBot.Models;
 using IRSeaBot.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,18 +29,19 @@ namespace IRSeaBot
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddDbContext<ApplicationDbContext>(options =>
+                  options.UseSqlServer(Settings.ConnString));
             services.AddControllersWithViews();
-            //services.AddHostedService<BotContainer>();
             services.AddScoped<IRCBot>();
             services.AddScoped<WeatherService>();
             services.AddScoped<YouTubeService>();
             services.AddScoped<ForecastService>();
             services.AddScoped<BotCommandResolver>();
             services.AddSingleton<ReminderContainer>();
-            services.AddScoped(typeof(IFileService<>), typeof(GenericFileService<>));
-
+            services.AddScoped<LikeRepository>();
+            services.AddScoped<SeenUserRepository>();
+            services.AddScoped<ReminderRepository>();
             services.AddSingleton<BotContainer>();
-            //services.AddHostedService<BotContainer>(provider => provider.GetService<BotContainer>());
 
         }
 

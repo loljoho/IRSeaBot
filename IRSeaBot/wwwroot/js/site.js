@@ -25,18 +25,7 @@ $(document).ready(function () {
             var bot = JSON.parse(data);
             debugger;
             addBotRow(bot);
-            //$('#bot-table tr:last').after(
-            //    `<tr>
-            //        <td>` + bot.id + `</td>
-            //        <td>` + bot.server + `</td>
-            //        <td>` + bot.port + `</td>
-            //        <td>` + bot.username + `</td>
-            //        <td>` + bot.nick + `</td>
-            //        <td>` + bot.server + `</td>
-            //        <td><button class='btn-danger' id='kill-`+ bot.id +`'>Kill</button></td>
-            //    </tr>`
-            //);
-            resetForm();
+            //resetForm();
         });
 
     });
@@ -55,7 +44,6 @@ $(document).ready(function () {
             console.log(data);
         });
     }
-
 
 
     function addBotRow(bot) {
