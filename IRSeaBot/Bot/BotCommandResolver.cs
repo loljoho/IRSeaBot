@@ -3,20 +3,16 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using IRSeaBot.Factories;
 using System.Text;
 using System.Collections.Generic;
+using IRSeaBot.Data.Entities;
+using IRSeaBot.Data.Repositories;
+using IRSeaBot.Factories;
 
 namespace IRSeaBot.Services
 {
     public class BotCommandResolver
     {
-        public IServiceProvider Services;
-
-        public BotCommandResolver(IServiceProvider services)
-        {
-            Services = services;
-        }
         private static string GetRestOfMessage(string[] msg)
         {
             StringBuilder sb = new StringBuilder();
@@ -44,7 +40,7 @@ namespace IRSeaBot.Services
             return replyTo;
         }
 
-        private async Task LogUserAsync(StreamWriter writer, ChatReply reply, string replyTo)
+        private async Task LogUserAsync(StreamWriter writer, ChatReply reply, string replyTo, IServiceProvider services)
         {
             if (replyTo.Equals(Settings.channel))
             {
@@ -54,10 +50,10 @@ namespace IRSeaBot.Services
                     string username = reply.User.Substring(1).Split("!")[0];
                     if (username == Settings.nick) return; //don't log the bot
                     string[] input = { username, reply.Message, DateTime.Now.ToString() };
-                    SeenUser seenUser = FileItemFactory.CreateFile(input, FileTypes.Seen) as SeenUser;
-                    using var scope = Services.CreateScope();
-                    IFileService<SeenUser> _s = scope.ServiceProvider.GetRequiredService<IFileService<SeenUser>>();
-                    await _s.WriteFile(seenUser);
+                    SeenUser seenUser = SeenUser.CreateSeen(input);
+                    using var scope = services.CreateScope();
+                    SeenUserRepository repository = scope.ServiceProvider.GetRequiredService<SeenUserRepository>();
+                    await repository.UpsertSeenUser(seenUser);
                 }
                 catch (Exception ex)
                 {
@@ -67,19 +63,19 @@ namespace IRSeaBot.Services
         }
 
 
-        private async Task WriteReminder(StreamWriter writer, string message, ChatReply chatReply, string replyTo)
+        private async Task WriteReminder(StreamWriter writer, string message, ChatReply chatReply, string replyTo, IServiceProvider services)
         {
             string username = chatReply.User.Substring(1).Split("!")[0];
             string[] input = message.Split("-");
-            Reminder reminder = FileItemFactory.CreateReminder(input, username, replyTo);
+            Reminder reminder = Reminder.CreateReminder(input, username, replyTo);
             if(reminder != null)
             {
-                using var scope = Services.CreateScope();
-                IFileService<Reminder> _s = scope.ServiceProvider.GetRequiredService<IFileService<Reminder>>();
-                Reminder newReminder = await _s.WriteFile(reminder);
+                using var scope = services.CreateScope();
+                ReminderRepository repository = scope.ServiceProvider.GetRequiredService<ReminderRepository>();
+                Reminder newReminder = await repository.Insert(reminder);
                 writer.WriteLine(newReminder?.GetSendMessage(replyTo));
                 writer.Flush();
-                ReminderContainer.AddReminder(reminder);
+                await ReminderContainer.AddReminder(reminder);
             }
             else
             {
@@ -98,19 +94,19 @@ namespace IRSeaBot.Services
             return false;
         }
 
-        public async Task SendLike(StreamWriter writer, string[] msg, string replyTo)
+        public async Task SendLike(StreamWriter writer, string[] msg, string replyTo, IServiceProvider services)
         {
             if (msg[0].EndsWith("++"))
             {
-                await SendLike(writer, msg, replyTo, '+');
+                await SendLike(writer, msg, replyTo, '+', services);
             }
             else if (msg[0].EndsWith("--"))
             {
-                await SendLike(writer, msg, replyTo, '-');
+                await SendLike(writer, msg, replyTo, '-', services);
             }
         }
 
-        public async Task SendLike(StreamWriter writer, string[] msg, string replyTo, char direction)
+        public async Task SendLike(StreamWriter writer, string[] msg, string replyTo, char direction, IServiceProvider services)
         {
             string phrase = msg[0].Split(":")[1];
             string[] input = new string[2];
@@ -126,25 +122,32 @@ namespace IRSeaBot.Services
                 input[0] = phrase;
                 input[1] = "-1";
             }
-            if (FileItemFactory.CreateFile(input, FileTypes.Likes) is Like like)
+
+            if (Like.CreateLike(input) is Like like)
             {
-                using var scope = Services.CreateScope();
-                IFileService<Like> _s = scope.ServiceProvider.GetRequiredService<IFileService<Like>>();
-                Like newLike = await _s.WriteFile(like);
+                using var scope = services.CreateScope();
+                LikeRepository repository = scope.ServiceProvider.GetRequiredService<LikeRepository>();
+                Like oldLike = await repository.GetByKey(like.Key);
+                if (oldLike == null) await repository.Insert(like);
+                else
+                {
+                    like.Score = oldLike.Score + like.Score;
+                }
+                Like newLike = await repository.UpsertLike(like);
                 writer.WriteLine(newLike?.GetSendMessage(replyTo));
                 writer.Flush();
             }
         }
 
-        public async Task ResolveCommand(StreamWriter writer, ChatReply reply)
+        public async Task ResolveCommand(StreamWriter writer, ChatReply reply, IServiceProvider services)
         {
             string replyTo = GetReplyTo(reply);
-            await LogUserAsync(writer, reply, replyTo);
+            await LogUserAsync(writer, reply, replyTo, services);
             string[] msg = reply.Message.Split(" ");
 
             if (IsLike(msg))
             {
-                await SendLike(writer, msg, replyTo);
+                await SendLike(writer, msg, replyTo, services);
             }
             else
             {
@@ -195,7 +198,7 @@ namespace IRSeaBot.Services
                         break;
                     case ":.we":
                         string msg2 = GetRestOfMessage(msg);
-                        using (var scope = Services.CreateScope())
+                        using (var scope = services.CreateScope())
                         {
 
                             WeatherService _s = scope.ServiceProvider.GetRequiredService<WeatherService>();
@@ -206,7 +209,7 @@ namespace IRSeaBot.Services
                         break;
                     case ":.fc":
                         string fcMsg = GetRestOfMessage(msg);
-                        using (var scope = Services.CreateScope())
+                        using (var scope = services.CreateScope())
                         {
 
                             ForecastService _s = scope.ServiceProvider.GetRequiredService<ForecastService>();
@@ -217,7 +220,7 @@ namespace IRSeaBot.Services
                         break;
                     case ":.yt":
                         string ytMsg = GetRestOfMessage(msg);
-                        using (var scope = Services.CreateScope())
+                        using (var scope = services.CreateScope())
                         {
 
                             YouTubeService _s = scope.ServiceProvider.GetRequiredService<YouTubeService>();
@@ -230,22 +233,22 @@ namespace IRSeaBot.Services
                         string phrase = GetRestOfMessage(msg).Trim();
                         if(phrase.Length > 0)
                         {
-                            using (var scope = Services.CreateScope())
-                            {
-                                IFileService<Like> _s = scope.ServiceProvider.GetRequiredService<IFileService<Like>>();
-                                string r = await _s.Get(phrase, replyTo);
-                                writer.WriteLine(r);
-                                writer.Flush();
-                            }
+                            using var scope = services.CreateScope();
+                            LikeRepository repository = scope.ServiceProvider.GetRequiredService<LikeRepository>();
+                            Like like = await repository.GetByKey(phrase);
+                            string reponse = like.GetSendMessage(replyTo);
+                            writer.WriteLine(reponse);
+                            writer.Flush();
                         }
                         break;
                     case ":.seen":
                         string seenMsg = GetRestOfMessage(msg);
-                        using (var scope = Services.CreateScope())
+                        using (var scope = services.CreateScope())
                         {
-                            IFileService<SeenUser> _s = scope.ServiceProvider.GetRequiredService<IFileService<SeenUser>>();
-                            string r = await _s.Get(seenMsg, replyTo);
-                            writer.WriteLine(r);
+                            SeenUserRepository repository = scope.ServiceProvider.GetRequiredService<SeenUserRepository>();
+                            SeenUser user = await repository.GetByKey(seenMsg);
+                            string response = user.GetSendMessage(replyTo);
+                            writer.WriteLine(response);
                             writer.Flush();
                         }
                         break;
@@ -265,7 +268,7 @@ namespace IRSeaBot.Services
                         break;
                     case ":.remind":
                         string reminderMessage = GetRestOfMessage(msg).Trim();
-                        await WriteReminder(writer, reminderMessage, reply, replyTo);
+                        await WriteReminder(writer, reminderMessage, reply, replyTo, services);
                         break;
                     default:
                         break;

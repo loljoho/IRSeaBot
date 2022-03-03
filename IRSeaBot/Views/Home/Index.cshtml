@@ -1,11 +1,57 @@
 ﻿@{
     ViewData["Title"] = "Home Page";
+    int botCount = 0;
 }
+
+
 
 <div class="container-fluid">
     <div class="col">
         <div class="row">
             <h3>BPR IRC BOT</h3>
+        </div>
+        <div class="row">
+            <table class="table" id="bot-table">
+                <tr>
+                    <th>Id</th>
+                    <th>Server</th>
+                    <th>Port</th>
+                    <th>Username</th>
+                    <th>Nickname</th>
+                    <th>Channel</th>
+                    <th>Kill</th>
+                </tr>
+            </table>
+        </div>
+        <div class=row>
+            <div class="col-3">
+                <div>Bot @botCount @{botCount++;}</div>
+            </div>
+            <div class="col-9">
+                <div class=form-row>
+                    <label class="form-label">Server</label>
+                    <input type="text" id="server" class="form-control"/>
+                </div>
+                 <div class=form-row>
+                    <label class="form-label">Port</label>
+                    <input type="text" id="port" class="form-control"/>
+                </div>
+                <div class=form-row>
+                    <label class="form-label">Username</label>
+                    <input type="text" id="username" class="form-control"/>
+                </div>
+                <div class=form-row>
+                    <label class="form-label">Nickname</label>
+                    <input type="text" id="nick" class="form-control"/>
+                </div>
+                <div class=form-row>
+                    <label class="form-label">Channel</label>
+                    <input type="text" id="channel" class="form-control"/>
+                </div>
+                <div class=form-row>
+                    <button class="btn btn-primary" id="submit">Submit</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>

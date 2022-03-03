@@ -1,74 +1,28 @@
-﻿using IRSeaBot.Models;
+﻿using IRSeaBot.Data.Entities;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
-namespace IRSeaBot.Factories
+namespace IRSeaBot.Data.Entities
 {
-    public class FileItemFactory : IFileItemFactory
+    public class Reminder : IBotEntity
     {
-        public static string GetFilePath(Type type)
+        public int Id { get; set; }
+        public string Message { get; set; }
+        public string Username { get; set; }
+        public DateTime RemindAt { get; set; }
+
+        public DateTime Timesamp { get; set; }
+
+        public string ReplyTo { get; set; }
+
+        public string GetSendMessage(string replyTo)
         {
-            string filePath;
-            if (type == typeof(SeenUser))
-            {
-                filePath = SeenUser.FileFolder;
-            }
-            else if(type == typeof(Reminder))
-            {
-                filePath = Reminder.FileFolder;
-            }
-            else
-            {
-                filePath = Like.FileFolder;
-            }
-            return filePath;
+            return $"PRIVMSG {replyTo} Ok I will remind you to do that at {RemindAt}";
         }
 
-        public static IFileItem CreateFile(string[] input, FileTypes type)
+        public string GetReminderMessage()
         {
-            return type switch
-            {
-                FileTypes.Seen => CreateSeen(input),
-                FileTypes.Likes => CreateLike(input),
-                _ => null,
-            };
-        }
-
-        private static SeenUser CreateSeen(string[] input)
-        {
-            try
-            {
-                SeenUser user = new()
-                {
-                    Key = input[0],
-                    Message = input[1],
-                    Timestamp = DateTime.Parse(input[2])
-                };
-                return user;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static Like CreateLike(string[] input)
-        {
-            try
-            {
-                Like like = new()
-                {
-                    Key = input[0],
-                    Score = int.Parse(input[1]),
-                };
-                return like;
-            }
-            catch
-            {
-                return null;
-            }
+            return $"PRIVMSG {ReplyTo} Hey {Username}, it is time to {Message}";
         }
 
         private static ReminderDuration ParseDuration(string durationString)
