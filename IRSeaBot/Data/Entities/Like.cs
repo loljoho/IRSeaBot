@@ -12,12 +12,19 @@ namespace IRSeaBot.Data.Entities
         public string Key { get; set; }
         public int Score { get; set; }
 
-        public string GetSendMessage(string replyTo)
+        public string ReplyTo { get; set; } //channel
+
+        public string GetSendMessage()
         {
-            return $"PRIVMSG {replyTo} {Key} has {Score} likes";
+            return $"PRIVMSG {ReplyTo} {Key} has {Score} likes";
         }
 
-        public static Like CreateLike(string[] input)
+        public static string GetNotFoundMessage(string replyTo, string key)
+        {
+            return $"PRIVMSG {replyTo} {key} has 0 likes";
+        }
+
+        public static Like CreateLike(string[] input, string replyTo)
         {
             try
             {
@@ -25,6 +32,7 @@ namespace IRSeaBot.Data.Entities
                 {
                     Key = input[0],
                     Score = int.Parse(input[1]),
+                    ReplyTo = replyTo,
                 };
                 return like;
             }

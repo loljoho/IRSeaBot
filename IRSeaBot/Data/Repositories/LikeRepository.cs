@@ -13,26 +13,25 @@ namespace IRSeaBot.Data.Repositories
 
         public async Task<Like> UpsertLike(Like like)
         {
-            Like found = await _set.FirstOrDefaultAsync(x => x.Key == like.Key);
-            if (found == null)
+            Like oldLike = await GeyByKeyAndChannel(like.Key, like.ReplyTo);
+            if (oldLike == null)
             {
-                Like inserted = await Insert(like);
-                return inserted;
+                await Insert(like);
+                return like;
             }
             else
             {
-                found.Score = like.Score;
-                _context.Update(found);
-                await _context.SaveChangesAsync();
-                return like;
+                oldLike.Score += like.Score;
+                await Edit(oldLike);
+                return oldLike;
             }
         }
 
-        public async Task<Like> GetByKey(string key)
+        public async Task<Like> GeyByKeyAndChannel(string key, string replyTo)
         {
             try
             {
-                return await _set.FirstOrDefaultAsync(x => x.Key.Equals(key));
+                return await _set.FirstOrDefaultAsync(x => x.Key.Equals(key) && x.ReplyTo.Equals(replyTo));
             }
             catch(Exception ex)
             {

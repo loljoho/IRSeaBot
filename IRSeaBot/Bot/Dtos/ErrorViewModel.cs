@@ -1,6 +1,6 @@
 using System;
 
-namespace IRSeaBot.Models
+namespace IRSeaBot.Dtos
 {
     public class ErrorViewModel
     {

@@ -1,19 +1,17 @@
-﻿using IRSeaBot.Models;
+﻿using IRSeaBot.Dtos;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace IRSeaBot.Services
 {
     public class BotContainer
     {
         public IServiceProvider Services;
-        private ConcurrentDictionary<Guid, IRCBot> botDictionary;
+        private readonly ConcurrentDictionary<Guid, IRCBot> botDictionary;
 
         public BotContainer(IServiceProvider services)
         {
@@ -34,7 +32,7 @@ namespace IRSeaBot.Services
             bool added = botDictionary.TryAdd(config.Id, bot);
             if (added)
             {
-                _ = bot.Chat(token, config, Services);
+                _ = bot.Chat(config, Services, token);
             }
         }
 
@@ -43,12 +41,12 @@ namespace IRSeaBot.Services
             bool found = botDictionary.TryGetValue(guid, out var bot);
             if (found)
             {
-                BotConfiguration config = bot.getConfig();
+                BotConfiguration config = bot.GetConfig();
                 config.cancellationTokenSource.Cancel();
                 bool removed = botDictionary.TryRemove(guid, out var removedBot);
                 if (removed)
                 {
-                    Console.WriteLine($"bot {removedBot.getConfig().Id}");
+                    Console.WriteLine($"bot {removedBot.GetConfig().Id}");
                 }
             }
         }

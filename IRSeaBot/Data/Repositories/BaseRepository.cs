@@ -60,11 +60,10 @@ namespace IRSeaBot.Data.Repositories
         {
             try
             {
-                T entityToUpdate = await GetById(entity.Id);
-                entityToUpdate = entity ?? entityToUpdate;
-                _set.Update(entityToUpdate);
+                _set.Attach(entity);
+                _context.Entry(entity).State = EntityState.Modified;
                 await _context.SaveChangesAsync();
-                return entityToUpdate;
+                return entity;
             }
             catch (Exception ex)
             {

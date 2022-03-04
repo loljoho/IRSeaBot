@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace IRSeaBot.Models
+namespace IRSeaBot.Dtos
 {
     public class WeatherReply
     {

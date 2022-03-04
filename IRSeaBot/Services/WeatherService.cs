@@ -1,4 +1,4 @@
-﻿using IRSeaBot.Models;
+﻿using IRSeaBot.Dtos;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;

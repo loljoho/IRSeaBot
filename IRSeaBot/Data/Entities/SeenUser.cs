@@ -13,12 +13,19 @@ namespace IRSeaBot.Data.Entities
         public string Message { get; set; }
         public DateTime Timestamp { get; set; }
 
-        public string GetSendMessage(string replyTo)
+        public string ReplyTo { get; set; } //channel
+
+        public string GetSendMessage()
         {
-            return $"PRIVMSG {replyTo} {User} was last seen at {Timestamp} saying {Message}";
+            return $"PRIVMSG {ReplyTo} {User} was last seen at {Timestamp} saying {Message}";
         }
 
-        public static SeenUser CreateSeen(string[] input)
+        public static string GetNotFoundMessage(string replyTo, string user)
+        {
+            return $"PRIVMSG {replyTo} I have never seen {user} before.";
+        }
+
+        public static SeenUser CreateSeen(string[] input, string replyTo)
         {
             try
             {
@@ -26,6 +33,7 @@ namespace IRSeaBot.Data.Entities
                 {
                     User = input[0],
                     Message = input[1],
+                    ReplyTo = replyTo,
                     Timestamp = DateTime.Parse(input[2])
                 };
                 return user;

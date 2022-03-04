@@ -13,7 +13,7 @@ namespace IRSeaBot.Data.Repositories
 
         public async Task<SeenUser> UpsertSeenUser(SeenUser seenUser)
         {
-            SeenUser found = await _set.FirstOrDefaultAsync(x => x.User == seenUser.User);
+            SeenUser found = await GetByKeyAndChannel(seenUser.User, seenUser.ReplyTo);
             if(found == null)
             {
                 SeenUser inserted = await Insert(seenUser);
@@ -23,17 +23,16 @@ namespace IRSeaBot.Data.Repositories
             {
                 found.Message = seenUser.Message;
                 found.Timestamp = seenUser.Timestamp;
-                _context.Update(found);
-                await _context.SaveChangesAsync();
-                return seenUser;
+                await Edit(found);
+                return found;
             }
         }
 
-        public async Task<SeenUser> GetByKey(string key)
+        public async Task<SeenUser> GetByKeyAndChannel(string key, string replyTo)
         {
             try
             {
-                return await _set.FirstOrDefaultAsync(x => x.User.Equals(key));
+                return await _set.FirstOrDefaultAsync(x => x.User.Equals(key) && x.ReplyTo.Equals(replyTo));
             }
             catch (Exception ex)
             {

@@ -12,8 +12,8 @@ namespace IRSeaBot.Services
     public class ReminderContainer
     {
         public IServiceProvider Services;
-        private static readonly SemaphoreSlim semaphore = new SemaphoreSlim(1);
-        public static List<Reminder> reminders = new List<Reminder>();
+        private static readonly SemaphoreSlim semaphore = new(1);
+        private static readonly List<Reminder> reminders = new();
         private bool remindersLoaded = false;
 
         public ReminderContainer(IServiceProvider services)
@@ -21,52 +21,80 @@ namespace IRSeaBot.Services
             Services = services;
         }
 
-        public async Task CheckReminders(StreamWriter writer)
+        public async Task CheckReminders(StreamWriter writer, string channel)
         {
-            List<Reminder> toRemove = new List<Reminder>();
-            await semaphore.WaitAsync();
-            foreach (Reminder reminder in reminders)
+            try
             {
-                if(reminder.RemindAt < DateTime.Now)
+                await semaphore.WaitAsync();
+                List<Reminder> toRemove = new();
+                foreach (Reminder reminder in reminders)
                 {
-                    writer.WriteLine(reminder.GetReminderMessage());
-                    writer.Flush();
-                    toRemove.Add(reminder);
+                    if (reminder.RemindAt < DateTime.Now && reminder.ReplyTo.Equals(channel))
+                    {
+                        writer.WriteLine(reminder.GetReminderMessage());
+                        writer.Flush();
+                        toRemove.Add(reminder);
 
+                    }
                 }
-            }
-            foreach (Reminder reminder in toRemove)
+                foreach (Reminder reminder in toRemove)
+                {
+                    reminders.Remove(reminder);
+                }
+            }catch (Exception ex)
             {
-                reminders.Remove(reminder);
+                Console.WriteLine(ex.Message);
             }
-            semaphore.Release();
+            finally
+            {
+                semaphore.Release();
+            }     
         }
 
         public async Task LoadReminders()
         {
             if (!remindersLoaded)
             {
-                using var scope = Services.CreateScope();
-                ReminderRepository repository = scope.ServiceProvider.GetRequiredService<ReminderRepository>();
-                List<Reminder> newReminders = await repository.GetSet();
-                foreach (Reminder reminder in newReminders)
+                try
                 {
-                    if (reminder.RemindAt > DateTime.Now)
+                    using var scope = Services.CreateScope();
+                    ReminderRepository repository = scope.ServiceProvider.GetRequiredService<ReminderRepository>();
+                    List<Reminder> newReminders = await repository.GetSet();
+                    await semaphore.WaitAsync();
+                    foreach (Reminder reminder in newReminders)
                     {
-                        await semaphore.WaitAsync();
-                        reminders.Add(reminder);
-                        semaphore.Release();
+                        if (reminder.RemindAt > DateTime.Now)
+                        {
+                            reminders.Add(reminder);
+                        }
                     }
+                    remindersLoaded = true;
+                }catch(Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
                 }
-                remindersLoaded = true;
+                finally
+                {
+                    semaphore.Release();
+                }
+
             }
         }
 
         public static async Task AddReminder(Reminder reminder)
         {
-            await semaphore.WaitAsync();
-            reminders.Add(reminder);
-            semaphore.Release();
+            try
+            {
+                await semaphore.WaitAsync();
+                reminders.Add(reminder);
+            }catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            finally
+            {
+                semaphore.Release();
+            }            
         }
     }
 }
