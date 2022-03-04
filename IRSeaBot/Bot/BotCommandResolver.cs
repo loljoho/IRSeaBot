@@ -1,10 +1,9 @@
-﻿using IRSeaBot.Models;
+﻿using IRSeaBot.Dtos;
 using System;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text;
-using System.Collections.Generic;
 using IRSeaBot.Data.Entities;
 using IRSeaBot.Data.Repositories;
 using IRSeaBot.Factories;
@@ -32,33 +31,29 @@ namespace IRSeaBot.Services
             }
             return word;
         }
-        private static string GetReplyTo(ChatReply reply)
+        private static string GetReplyTo(ChatReply reply, string botNick)
         {
             string replyTo;
-            if (reply.Param == "LookOfRobot") replyTo = reply.User.Substring(1).Split("!")[0];
+            if (reply.Param == botNick) replyTo = reply.User.Substring(1).Split("!")[0];
             else replyTo = reply.Param;
             return replyTo;
         }
 
         private async Task LogUserAsync(StreamWriter writer, ChatReply reply, string replyTo, IServiceProvider services)
         {
-            if (replyTo.Equals(Settings.channel))
+            if (reply.Message.Contains(".seen")) return;
+            try
             {
-                if (reply.Message.Contains(".seen")) return;
-                try
-                {
-                    string username = reply.User.Substring(1).Split("!")[0];
-                    if (username == Settings.nick) return; //don't log the bot
-                    string[] input = { username, reply.Message, DateTime.Now.ToString() };
-                    SeenUser seenUser = SeenUser.CreateSeen(input);
-                    using var scope = services.CreateScope();
-                    SeenUserRepository repository = scope.ServiceProvider.GetRequiredService<SeenUserRepository>();
-                    await repository.UpsertSeenUser(seenUser);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex.Message);
-                }
+                string username = reply.User.Substring(1).Split("!")[0];
+                string[] input = { username, reply.Message, DateTime.Now.ToString() };
+                SeenUser seenUser = SeenUser.CreateSeen(input, replyTo);
+                using var scope = services.CreateScope();
+                SeenUserRepository repository = scope.ServiceProvider.GetRequiredService<SeenUserRepository>();
+                await repository.UpsertSeenUser(seenUser);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
             }
         }
 
@@ -73,7 +68,7 @@ namespace IRSeaBot.Services
                 using var scope = services.CreateScope();
                 ReminderRepository repository = scope.ServiceProvider.GetRequiredService<ReminderRepository>();
                 Reminder newReminder = await repository.Insert(reminder);
-                writer.WriteLine(newReminder?.GetSendMessage(replyTo));
+                writer.WriteLine(newReminder?.GetSendMessage());
                 writer.Flush();
                 await ReminderContainer.AddReminder(reminder);
             }
@@ -123,25 +118,19 @@ namespace IRSeaBot.Services
                 input[1] = "-1";
             }
 
-            if (Like.CreateLike(input) is Like like)
+            if (Like.CreateLike(input, replyTo) is Like like)
             {
                 using var scope = services.CreateScope();
                 LikeRepository repository = scope.ServiceProvider.GetRequiredService<LikeRepository>();
-                Like oldLike = await repository.GetByKey(like.Key);
-                if (oldLike == null) await repository.Insert(like);
-                else
-                {
-                    like.Score = oldLike.Score + like.Score;
-                }
                 Like newLike = await repository.UpsertLike(like);
-                writer.WriteLine(newLike?.GetSendMessage(replyTo));
+                writer.WriteLine(newLike?.GetSendMessage());
                 writer.Flush();
             }
         }
 
-        public async Task ResolveCommand(StreamWriter writer, ChatReply reply, IServiceProvider services)
+        public async Task ResolveCommand(StreamWriter writer, ChatReply reply, IServiceProvider services, string botNick)
         {
-            string replyTo = GetReplyTo(reply);
+            string replyTo = GetReplyTo(reply, botNick);
             await LogUserAsync(writer, reply, replyTo, services);
             string[] msg = reply.Message.Split(" ");
 
@@ -235,8 +224,8 @@ namespace IRSeaBot.Services
                         {
                             using var scope = services.CreateScope();
                             LikeRepository repository = scope.ServiceProvider.GetRequiredService<LikeRepository>();
-                            Like like = await repository.GetByKey(phrase);
-                            string reponse = like.GetSendMessage(replyTo);
+                            Like like = await repository.GeyByKeyAndChannel(phrase, replyTo);
+                            string reponse = like?.GetSendMessage() ?? Like.GetNotFoundMessage(replyTo, phrase);
                             writer.WriteLine(reponse);
                             writer.Flush();
                         }
@@ -246,8 +235,8 @@ namespace IRSeaBot.Services
                         using (var scope = services.CreateScope())
                         {
                             SeenUserRepository repository = scope.ServiceProvider.GetRequiredService<SeenUserRepository>();
-                            SeenUser user = await repository.GetByKey(seenMsg);
-                            string response = user.GetSendMessage(replyTo);
+                            SeenUser user = await repository.GetByKeyAndChannel(seenMsg, replyTo);
+                            string response = user?.GetSendMessage() ?? SeenUser.GetNotFoundMessage(replyTo, seenMsg);
                             writer.WriteLine(response);
                             writer.Flush();
                         }

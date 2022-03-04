@@ -15,9 +15,14 @@ namespace IRSeaBot.Data.Entities
 
         public string ReplyTo { get; set; }
 
-        public string GetSendMessage(string replyTo)
+        //public string GetSendMessage(string replyTo)
+        //{
+        //    return $"PRIVMSG {replyTo} Ok I will remind you to do that at {RemindAt}";
+        //}
+
+        public string GetSendMessage()
         {
-            return $"PRIVMSG {replyTo} Ok I will remind you to do that at {RemindAt}";
+            return $"PRIVMSG {ReplyTo} Ok I will remind you to do that at {RemindAt}";
         }
 
         public string GetReminderMessage()

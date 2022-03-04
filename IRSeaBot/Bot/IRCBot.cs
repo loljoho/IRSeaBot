@@ -1,15 +1,11 @@
-﻿using IRSeaBot.Factories;
-using IRSeaBot.Models;
+﻿using IRSeaBot.Dtos;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
 
 namespace IRSeaBot.Services
 {
@@ -29,7 +25,7 @@ namespace IRSeaBot.Services
             _logger = logger;
         }
 
-        public BotConfiguration getConfig()
+        public BotConfiguration GetConfig()
         {
             return _config;
         }
@@ -39,7 +35,7 @@ namespace IRSeaBot.Services
             try
             {
                 string[] splitInput = inputLine.Split(new Char[] { ' ' });
-                ChatReply reply = new ChatReply
+                ChatReply reply = new()
                 {
                     User = splitInput[0],
                     Command = splitInput[1],
@@ -49,7 +45,7 @@ namespace IRSeaBot.Services
                     reply.Param = splitInput[2];
                     if(splitInput.Length > 3)
                     {
-                        StringBuilder sb = new StringBuilder();
+                        StringBuilder sb = new();
                         for (int i = 3; i < splitInput.Length; i++)
                         {
                             sb.Append(splitInput[i] + " ");
@@ -65,7 +61,7 @@ namespace IRSeaBot.Services
             }
         }
 
-        private void SetClientNick(StreamWriter writer, string user, string nick)
+        private static void SetClientNick(StreamWriter writer, string user, string nick)
         {
             writer.WriteLine($"NICK {nick}");
             writer.Flush();
@@ -73,14 +69,14 @@ namespace IRSeaBot.Services
             writer.Flush();
         }
 
-        private void SendPongReply(StreamWriter writer, ChatReply reply)
+        private static void SendPongReply(StreamWriter writer, ChatReply reply)
         {
             string pongReply = reply.Command;
             writer.WriteLine("PONG " + pongReply);
             writer.Flush();
         }
 
-        private void JoinChannel(StreamWriter writer, string channel)
+        private static void JoinChannel(StreamWriter writer, string channel)
         {
             writer.WriteLine("JOIN " + channel);
             writer.Flush();
@@ -88,10 +84,10 @@ namespace IRSeaBot.Services
 
         private async Task CheckReminders(StreamWriter writer)
         {
-            await _reminderContainer.CheckReminders(writer);
+            await _reminderContainer.CheckReminders(writer, _config.Channel);
         }
 
-        public async Task Chat(CancellationToken cancellationToken, BotConfiguration config, IServiceProvider services)
+        public async Task Chat(BotConfiguration config, IServiceProvider services, CancellationToken cancellationToken)
         {
             _config = config;
             bool retry = true;
@@ -137,9 +133,9 @@ namespace IRSeaBot.Services
                                 {
                                     JoinChannel(writer, config.Channel);
                                 }
-                                else if (reply.Command == "PRIVMSG" && !String.IsNullOrWhiteSpace(reply.Message))
+                                else if (reply.Command == "PRIVMSG" && !string.IsNullOrWhiteSpace(reply.Message))
                                 {
-                                    await _resolver.ResolveCommand(writer, reply, services);
+                                    await _resolver.ResolveCommand(writer, reply, services, config.Nick);
                                 }
                             }
                             catch (Exception ex)
@@ -153,7 +149,7 @@ namespace IRSeaBot.Services
                         // shows the exception, sleeps for a little while and then tries to establish a new connection to the IRC server
                         _logger.LogInformation(e.ToString());
                         reminderTimer.Stop();
-                        await Task.Delay(5000);
+                        await Task.Delay(5000, cancellationToken);
                         retryCount++;
                         if (retryCount > _maxRetries) retry = false;
                     }

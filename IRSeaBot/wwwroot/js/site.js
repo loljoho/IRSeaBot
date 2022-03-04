@@ -5,6 +5,7 @@
 
 $(document).ready(function () {
     console.log("ready!");
+    setInterval(getList, 3000);
 
     $("#submit").click(() => {
         var server = $("#server").val();
@@ -22,33 +23,32 @@ $(document).ready(function () {
         }
         $.post("/Home/StartBot", { config: JSON.stringify(obj) }).done(function (data) {
             console.log("started bot");
-            var bot = JSON.parse(data);
-            debugger;
-            addBotRow(bot);
-            //resetForm();
         });
 
     });
 
     $("#bot-table").on("click", "button", function () {
-        debugger
         var id = $(this).data("guid");
         $.get("/Home/Kill?id=" + id).done(function (data) {
-            $("#" + data).remove();
-            getList();
+            console.log("killed bot");
         });
     });
 
     function getList() {
         $.get("/Home/GetBotList").done(function (data) {
             console.log(data);
+            $('.removeRow').remove();
+            var list = JSON.parse(data);
+            $.each(list, function (index, element) {
+                addBotRow(element);
+            })
         });
     }
 
 
     function addBotRow(bot) {
-        $('#bot-table tr:last').after(
-            `<tr id='` +bot.Id +`'>
+        $('#bot-table tbody').append(
+            `<tr class='removeRow' id='` +bot.Id +`'>
                 <td>` + bot.Id + `</td>
                 <td>` + bot.Server + `</td>
                 <td>` + bot.Port + `</td>

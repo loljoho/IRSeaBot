@@ -1,4 +1,4 @@
-﻿using IRSeaBot.Models;
+﻿using IRSeaBot.Dtos;
 using IRSeaBot.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -39,7 +39,7 @@ namespace IRSeaBot.Controllers
         public IActionResult GetBotList()
         {
             List<IRCBot> bots = _botContainer.GetBotList();
-            List<BotConfiguration> configurations = bots.Select(x => x.getConfig()).ToList();
+            List<BotConfiguration> configurations = bots.Select(x => x.GetConfig()).ToList();
             string rtn = JsonConvert.SerializeObject(configurations);
             return Ok(rtn);
 

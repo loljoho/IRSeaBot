@@ -1,7 +1,7 @@
 using IRSeaBot.Data;
 using IRSeaBot.Data.Repositories;
 using IRSeaBot.Factories;
-using IRSeaBot.Models;
+using IRSeaBot.Dtos;
 using IRSeaBot.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

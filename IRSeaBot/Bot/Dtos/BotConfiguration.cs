@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading;
 
-namespace IRSeaBot.Models
+namespace IRSeaBot.Dtos
 {
     public class BotConfiguration
     {

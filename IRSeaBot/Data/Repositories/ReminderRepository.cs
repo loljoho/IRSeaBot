@@ -12,17 +12,5 @@ namespace IRSeaBot.Data.Repositories
         public ReminderRepository(ApplicationDbContext context) : base(context)
         {
         }
-
-        public async Task RemoveKeys(List<int> keys)
-        {
-            try
-            {
-                List<Reminder> reminders = await _set.Where(x => keys.Contains(x.Id)).ToListAsync();
-                _context.RemoveRange(reminders);
-            }catch(Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-        }
     }
 }
