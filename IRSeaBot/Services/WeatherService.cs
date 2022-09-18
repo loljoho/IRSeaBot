@@ -19,7 +19,7 @@ namespace IRSeaBot.Services
             {
                 string resp = await response.Content.ReadAsStringAsync();
                 WeatherReply wr = JsonConvert.DeserializeObject<WeatherReply>(resp);
-                string r = "Weather in " + wr.location.name + ", " + wr.location.region + " is " + wr.current.condition.text + " and " + wr.current.temp_f + ", it feels like " + wr.current.feelslike_f + ".";
+                string r = "Weather in " + wr.location.name + ", " + wr.location.region + " is " + wr.current.condition.text + " and " + wr.current.temp_f + ", it feels like " + wr.current.feelslike_f + ".  Humiditiy is " + wr.current.humidity + "% rH.";
                 string reply = $"PRIVMSG {replyTo} {r}";
                 return reply;
             }
